@@ -1,0 +1,11 @@
+# Path budget: 256 bytes. Keep dist/ in Git.
+**/node_modules/
+**/.vite/
+**/.cache/
+**/.npm/
+**/.pnpm-store/
+**/coverage/
+**/playwright-report/
+**/test-results/
+.playwright-mcp/
+test/scratch/

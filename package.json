@@ -1,0 +1,23 @@
+{
+  "name": "claus-crawl",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build && node scripts/finalize.mjs && node scripts/check-export.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "check:export": "node scripts/check-export.mjs",
+    "test": "node --experimental-strip-types --test tests/data.test.ts",
+    "test:browser": "node tests/interactions.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.1"
+  },
+  "engines": {
+    "node": ">=24.14.0 <25"
+  }
+}

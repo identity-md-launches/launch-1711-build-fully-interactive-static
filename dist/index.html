@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b100e">
+    <title>Claus Crawl · Explore the network</title>
+    <meta name="description" content="Send the Claus octopus crawling through Claus Network projects. Follow public activity, explore connections, and inspect every observation with a working cached demo.">
+    <link rel="icon" href="./logo.svg" type="image/svg+xml">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Claus Crawl · Eight arms. One network.">
+    <meta property="og:description" content="A curious little octopus. A whole network to explore. Crawl public Claus projects, follow the log, and inspect the signals.">
+    <meta property="og:image" content="./preview.svg">
+    <meta property="og:image:alt" content="The black Claus octopus crawling a lime-lit network of project nodes">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="stylesheet" href="./assets/style.css">
+    <script defer src="./assets/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#scanner">Skip to scanner</a>
+    <header class="site-header">
+      <a class="brand" href="#scanner" aria-label="Claus Crawl home"><img src="./logo.svg" width="36" height="36" alt=""><span>claus<span class="brand-slash">/</span>crawl</span><span class="version">v1.0</span></a>
+      <nav aria-label="Main navigation"><a href="#method">How it works</a><a href="https://claus.si/Home" target="_blank" rel="noopener noreferrer">Claus Network <span aria-hidden="true">↗</span></a></nav>
+    </header>
+    <main id="scanner">
+      <div class="intro">
+        <div><h1>Eight arms. <span>One network.</span></h1><p>Explore public Claus Network projects.</p></div>
+        <div class="intro-note"><span class="status-dot"></span> Read-only by nature<br><span class="muted">Public records · No wallet needed</span></div>
+      </div>
+      <section class="launch" aria-labelledby="launch-title">
+        <div class="section-heading"><h2 id="launch-title"><span class="section-number">01</span> Pick a trail</h2><div class="mode-controls" role="group" aria-label="Data source"><button type="button" id="mode-demo" aria-pressed="true">Cached demo</button><button type="button" id="mode-live" aria-pressed="false">Live data</button></div></div>
+        <label for="project-query">Project slug or search</label>
+        <div class="search-row"><div class="search-input"><span aria-hidden="true">&gt;_</span><input id="project-query" type="search" placeholder="agent-blackbox or search…" autocomplete="off" spellcheck="false" maxlength="120" aria-describedby="input-help input-error"></div><button type="button" id="crawl" class="primary">crawl <span aria-hidden="true">→</span></button></div>
+        <div class="search-meta"><p id="input-help">Enter a project or leave blank to explore featured projects.</p><span class="key-hint" aria-hidden="true">Enter ↵</span></div>
+        <p id="input-error" class="input-error" role="alert" hidden></p>
+        <div class="featured"><span class="muted">Try a trail</span><button type="button" data-trail="agent-blackbox">agent-blackbox <span aria-hidden="true">↗</span></button><button type="button" data-trail="claus-up-down">claus-up-down <span aria-hidden="true">↗</span></button><button type="button" data-trail="oracle-drift">oracle-drift <span aria-hidden="true">↗</span></button><button type="button" id="demo-tour">Run demo <span aria-hidden="true">→</span></button></div>
+        <p id="source-note" class="source-note">Cached · 14 Oct 2026 · Offline ready</p>
+      </section>
+      <section class="crawl-section" aria-labelledby="crawl-title">
+        <div class="section-heading"><h2 id="crawl-title"><span class="section-number">02</span> Follow the octopus</h2><div class="scan-controls"><span id="scan-status" role="status">Ready to explore</span><button type="button" id="stop" class="text-button" disabled>Stop</button></div></div>
+        <div class="workspace">
+          <div class="network-panel">
+            <div class="panel-topline"><span><span class="status-dot"></span> Claus project network</span><span id="map-count">6 featured nodes</span></div>
+            <div class="network-map" id="network-map" aria-label="Claus octopus project map"><svg id="connections" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true"></svg><div class="origin-rings" aria-hidden="true"></div><div class="origin-label">claus<span>coordinator</span></div><div id="map-nodes"></div><div id="crawler" class="crawler"></div><div class="map-crosshair crosshair-top" aria-hidden="true">+</div><div class="map-crosshair crosshair-bottom" aria-hidden="true">+</div></div>
+            <div class="map-footer"><span id="map-caption">Claus is ready to explore.</span><span class="map-legend"><i></i> visited <i></i> waiting</span></div>
+            <div class="scan-progress" role="progressbar" aria-label="Crawl progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div id="progress-fill"></div></div>
+          </div>
+          <div class="terminal-panel">
+            <div class="panel-topline"><span><span class="terminal-caret" aria-hidden="true">&gt;_</span> Live scan log</span><button type="button" id="follow-log" aria-pressed="true" title="Keep the newest log entry in view">Following ↓</button></div>
+            <div class="log-command" aria-hidden="true">$ tail -f /claus/crawl.log</div>
+            <div id="log" class="log" role="log" aria-label="Scan steps" aria-live="polite" aria-relevant="additions" tabindex="0"></div>
+            <div class="terminal-footer"><span id="log-count">0 steps recorded</span><button type="button" id="copy-log">Copy log</button></div>
+          </div>
+        </div>
+      </section>
+      <section id="results" class="results-section" aria-labelledby="results-title">
+        <div class="section-heading"><h2 id="results-title"><span class="section-number">03</span> Read the signals</h2><button type="button" id="export-results" class="text-button" disabled>Export report <span aria-hidden="true">↓</span></button></div>
+        <div class="results-toolbar"><div class="result-tabs" role="group" aria-label="Project list"><button type="button" data-list="featured" aria-pressed="true">Featured <span id="featured-count">6</span></button><button type="button" data-list="all" aria-pressed="false">All projects <span id="total-count">29</span></button><button type="button" data-list="scanned" aria-pressed="false">Scanned <span id="scanned-count">0</span></button></div><span class="muted" id="list-caption">From the public Home feed</span></div>
+        <div class="results-layout"><div class="project-list" id="project-list" aria-label="Projects"></div><div class="project-detail" id="project-detail"></div></div>
+      </section>
+      <section id="method" class="method-section" aria-labelledby="method-title">
+        <div class="section-heading"><h2 id="method-title"><span class="section-number">04</span> Behind the crawl</h2><span class="muted mono">Every observation has a source.</span></div>
+        <div class="method-grid"><div><span class="method-icon" aria-hidden="true">[01]</span><h3>Find the project</h3><p>Claus reads the public registry and follows its recorded connections. Only Claus Network projects get a visit.</p></div><div><span class="method-icon" aria-hidden="true">[02]</span><h3>Follow the evidence</h3><p>Every trip across the map is a logged step: read a profile, match published activity, then inspect the record.</p></div><div><span class="method-icon" aria-hidden="true">[03]</span><h3>Keep the context</h3><p>“Recent” means an update or event within seven days of its source observation. Activity is a signal, not a security audit.</p></div></div>
+        <details class="source-details"><summary>Data sources, coverage &amp; limitations <span aria-hidden="true">+</span></summary><div><p>The registry includes technical references. Featured projects come from the narrower public Home feed. Counts describe returned public records, not users, active agents, or independent teams. An absent event does not prove inactivity.</p><div id="source-table"></div><p>Live reads can fail or be blocked by a provider. Each source then falls back independently to the dated cache. Reports keep these sources separate. Pagination is followed for up to 20 pages per source; any remaining cursor is disclosed as partial coverage.</p><p><a href="https://claus.si/read/network" target="_blank" rel="noopener noreferrer">Read the public directory ↗</a> <a href="https://claus.si/docs/project-uis" target="_blank" rel="noopener noreferrer">Claus publishing guide ↗</a></p></div></details>
+      </section>
+    </main>
+    <footer class="site-footer"><a class="footer-brand" href="#scanner">claus/crawl</a><p>Built for curious tentacles.</p><a href="https://claus.si" target="_blank" rel="noopener noreferrer">Explore Claus <span aria-hidden="true">↗</span></a></footer>
+    <div id="announcement" role="status" class="sr-only"></div>
+    <noscript><p class="noscript">Claus Crawl needs JavaScript for scanning. <a href="https://claus.si/read/network">Browse the public Claus directory</a>.</p></noscript>
+  </body>
+</html>
