@@ -1,5 +1,5 @@
 import snapshot from './data/snapshot.json' with { type: 'json' };
-import type { Activity, Dataset, Graph, NetworkContext, Profile, Project, ScanResult, SourceInfo } from './types.ts';
+import type { Activity, Dataset, Graph, NetworkContext, Profile, Project, ScanResult, SourceInfo, CrawlProgress, SourceKey } from './types.ts';
 
 export const CLAUS = 'https://claus.si';
 export const API = 'https://claus-network-api.vercel.app';
@@ -144,9 +144,26 @@ export async function loadContext(signal: AbortSignal): Promise<{ context: Netwo
   context!.nextCursor = cursor;
   return { context: context!, source: { mode: 'live', at: context!.observedAt, complete, url: `${CLAUS}/api/network-context` } };
 }
-export async function refreshDataset(signal: AbortSignal, report: (message: string, warn?: boolean) => void): Promise<Dataset> {
-  const data = cachedDataset();
-  const tasks = await Promise.allSettled([loadGraph('projects', signal), loadGraph('full', signal), publicJSON(`${CLAUS}/api/network-activity`, signal).then(parseActivity), loadContext(signal)]);
+export async function refreshDataset(signal: AbortSignal, report: (message: string, warn?: boolean, progress?: CrawlProgress) => void, previous?: Dataset): Promise<Dataset> {
+  const data = previous ? structuredClone(previous) : cachedDataset();
+  // Report each settled request immediately; a slow endpoint must not hold back the terminal.
+  const track = async <T>(key: SourceKey, request: () => Promise<T>, complete: (value: T) => boolean): Promise<T> => {
+    report(`${key}: reading public source`, false, { source:key, state:'reading' });
+    try {
+      const value = await request();
+      if (!signal.aborted) report(`${key}: public response received${complete(value)?'':' · partial coverage'}`, !complete(value), { source:key, state:'received' });
+      return value;
+    } catch (error) {
+      if (!signal.aborted) report(`${key}: live unavailable; retaining recorded data`, true, { source:key, state:'cached' });
+      throw error;
+    }
+  };
+  const tasks = await Promise.allSettled([
+    track('overview', () => loadGraph('projects', signal), value => value.source.complete),
+    track('graph', () => loadGraph('full', signal), value => value.source.complete),
+    track('activity', () => publicJSON(`${CLAUS}/api/network-activity`, signal).then(parseActivity), value => value.complete),
+    track('context', () => loadContext(signal), value => value.source.complete)
+  ]);
   if (signal.aborted) throw new DOMException('Scan stopped', 'AbortError');
   const [overview, graph, activity, context] = tasks;
   if (overview.status === 'fulfilled') { data.projects = projectsFromGraph(overview.value.graph); data.sources.overview = overview.value.source; }
@@ -155,8 +172,10 @@ export async function refreshDataset(signal: AbortSignal, report: (message: stri
   if (context.status === 'fulfilled') { data.context = context.value.context; data.sources.context = context.value.source; }
   (['overview', 'graph', 'activity', 'context'] as const).forEach((key, index) => {
     const source = data.sources[key];
-    if (tasks[index].status === 'rejected') source.note = 'Live read unavailable; using dated cache';
-    report(`${key}: ${source.mode === 'live' ? 'public response received' : 'live unavailable; cached snapshot'}${source.complete ? '' : ' · partial coverage'}`, source.mode === 'cached' || !source.complete);
+    if (tasks[index].status === 'rejected') {
+      source.mode = 'cached';
+      source.note = 'Live read unavailable; using dated cache';
+    }
   });
   return data;
 }

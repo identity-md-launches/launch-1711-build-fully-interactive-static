@@ -1,6 +1,6 @@
 # Claus Crawl
 
-**Every Claus launch leaves a trail.** A static intelligence and discovery dashboard exclusively for the Claus ecosystem. Explore actual public projects, profile publications, website releases, explicit relationships and attributed evidence. The black Claus octopus remains the crawler identity, now in a dark interface with icy-blue accents.
+**Every Claus launch leaves a trail.** A static intelligence and discovery dashboard exclusively for the Claus ecosystem. Explore actual public projects, profile publications, website releases, explicit relationships and attributed evidence. The black Claus octopus remains the crawler identity in the existing dark interface with icy-blue accents. This revision adds an animated seven-octopus swarm and an activity terminal to Overview and Crawler agents; the directory, Launch Radar, evidence pages and support jar remain intact.
 
 The deliverable is **`dist/`**, alongside source and the unchanged package manifest/lockfile. It uses relative assets and hash routes, so it works at an IPFS gateway subpath and in the Claus isolated static host. No hosting or publication command was run.
 
@@ -27,10 +27,12 @@ Open the URL printed by Vite. The build retains the inherited classic JavaScript
 
 ## What works
 
-- Overview with latest **profile publications**, recently updated Home projects, seven-day returned-event counts and clearly unavailable verified-risk coverage.
+- **Claus Launch Radar** with latest **profile publications**, recently updated Home projects, seven-day returned-event counts and clearly unavailable verified-risk coverage.
 - Search by name, slug, project ID or description; Home/full-registry filters, sorting, pagination and empty-state recovery.
 - A dedicated `#project=SLUG` page for every loaded project: stable ID, public status/revision, description, official links, returned releases, timeline, explicit graph relationships, published review caveats and source-verified deployment links where supplied.
 - Activity-type filters, per-source timestamps and completeness, manual live refresh, cancel/retry, validated responses and independent dated fallback.
+- Seven animated Claus octopuses with a highlighted agent route, walking/scan phases, Pause/Resume motion, runtime reduced-motion support and offscreen suspension.
+- Activity terminal with **Recorded events** and **Crawl log** views; finite replay, pause/restart, linked evidence, scrollback and Jump to latest. Actual read progress streams as each source responds.
 - Seven focused crawler modules; name overlaps remain hypotheses. JSON evidence exports preserve source clocks, IDs, caveats and actual crawl steps.
 - **Support Claus Crawl** in navigation and footer, with a dedicated “Support the Crawl” page, full selectable address, Copy Address confirmation/fallback and a locally bundled, decoded-and-verified QR code.
 - A separate persistent Node crawler with non-overlapping scheduled runs, first-seen tracking, metadata differences and deduplicated evidence. See [server/README.md](server/README.md).
@@ -41,7 +43,19 @@ The default view makes **zero external requests**. Its recorded public snapshot 
 
 A “launch” means the public profile publication reported by Claus. A website release is distinct from a token launch. Public descriptions are untrusted project claims. Profile `updatedAt` is not the project's original creation time. Current public release lists are not complete lifetime histories. Creator identity, creator-owned project grouping and verified owner wallets are unavailable from the verified feeds; the UI says so.
 
-A real browser refresh returned three of four sources live; activity lacked usable CORS and retained its dated snapshot. An operator-run backend crawl returned four of four sources live. Every source keeps its own timestamp. No always-on backend is deployed or connected. Watchlists and notifications remain future additions. Missing evidence is never treated as a safety guarantee; review caveats are attributed rather than independently reverified.
+In this revision, a real browser refresh on **14 October 2026 at 12:16 UTC returned two of four sources live** (registry and Home inventory). Graph and activity were unavailable and retained their dated records; see [the actual read record](artifacts/live-read.json). The previous delivery recorded three of four browser sources and four of four operator-backend sources; those are historical observations, not this revision’s result. Every source keeps its own timestamp. On a subsequent failure, the browser now retains the latest successful in-session observation and marks it Recorded; a failure no longer resets it to the older bundled snapshot. No always-on backend is deployed or connected. Watchlists and notifications remain future additions. Missing evidence is never treated as a safety guarantee; review caveats are attributed rather than independently reverified.
+
+### Why the crawlers had stopped
+
+Inspection before editing found that `networkArt()` rendered a static SVG, the stylesheet had no crawler translation/arm animation (only the request spinner), and the hero art was hidden below 700px. There was no moving swarm lifecycle to restart. This was missing animation wiring in the delivered implementation, not a demonstrated API or Safari failure. The request log also updated only after `Promise.allSettled` completed all sources.
+
+`src/swarm.ts` now mounts/unmounts the swarm independently of the page render and uses SVG transforms for travel. Tentacle and walking motion stay on nested elements, so they cannot overwrite travel. `refreshDataset()` reports individual results immediately; the terminal appends them without rerendering the whole page. The original transcript and JSON exports retain these same real steps.
+
+### Demo versus actual activity
+
+- **Demo motion:** the route geometry, walking and scanning poses illustrate the seven existing module roles. They are not live worker positions, a measured network topology or evidence of a completed scan.
+- **Recorded replay:** real source-attributed events, shown in timestamp order at a playback pace. It starts paused and never substitutes the current clock for an event timestamp.
+- **Live read:** only a successful explicit public request receives that label. Refresh sources and Stop retain their original semantics; an unavailable source falls back to dated records. No automatic collection service is connected.
 
 Read the concise [integration report](INTEGRATION.md) for verified endpoints, SDK inspection, authentication, rate limits, native/off-chain distinctions, terms limitations and outstanding infrastructure.
 
@@ -54,7 +68,7 @@ npm test
 npm run build
 ```
 
-Snapshot-specific count assertions in the tests must be checked against any newly captured observation. The capture command was successfully checked against an external `/tmp` output so the delivered snapshot and its recorded counts remain consistent.
+Snapshot-specific count assertions in the tests must be checked against any newly captured observation. The previous delivery checked the capture command against an external `/tmp` output. This revision preserves the bundled snapshot and its recorded counts.
 
 ## Support address
 
@@ -92,7 +106,9 @@ This resumes the existing slug. Retain the actual returned project, release and 
 
 ## Validation
 
-Checked locally: production build/export, TypeScript, **23 data/analysis tests**, **six persistent-crawler/scheduler tests**, **19 browser interaction checks including Chromium and WebKit**, and **16/16 pinned taste@1 checks**. Automated accessibility scans found zero WCAG A/AA rule violations on seven routes at 390 and 1440 widths. This is not a claim of complete accessibility certification or a physical-device/screen-reader test. Full results, fixed findings, exact environment details and remaining limits are in [artifacts/validation.md](VALIDATION.md). The implemented design system is in [DESIGN.md](DESIGN.md).
+Checked on this revision: production build/export, TypeScript, **23 data/analysis tests**, **six persistent-crawler/scheduler tests**, **19 existing interaction checks**, **10 new swarm checks** (both suites include Chromium and WebKit), and **16/16 pinned taste@1 checks**. Axe-core found zero automated WCAG A/AA rule violations across seven routes at 390 and 1440 widths; some contrast checks needed manual review, so this is not full accessibility certification. The first screen at 390 contains the product, search action and visible crawlers.
+
+Commands, measured contrast, before/after findings across Better Interface’s six domains, source limitations and screenshots are in [the current validation report](VALIDATION.md). The previous delivery’s record is retained in the historical appendix of that report. Named screenshot/JSON artifacts are emitted separately under `artifacts/`. The implemented tokens, components and responsive/motion behavior are in [DESIGN.md](DESIGN.md).
 
 Repeat browser validation on a machine with browser system dependencies installed:
 
@@ -100,9 +116,10 @@ Repeat browser validation on a machine with browser system dependencies installe
 npx playwright install chromium webkit
 npm run build
 npm run test:browser
+node tests/swarm.mjs
 ```
 
-The tests serve the export under `/preview/` and an opaque-origin `/sandbox/`, manage their own server/browser lifecycle, and write disposable evidence only under `test/scratch/`. `IMD_PLAYWRIGHT` optionally points to an external Playwright `index.mjs`; `IMD_WEBKIT_EXECUTABLE` optionally selects a compatible WebKit wrapper. The worker installed tools under `/tmp`; none is delivered. The existing ignore file remains unchanged and excludes generated dependencies/caches at every nesting level. `dist/` stays included.
+The tests serve the export under `/preview/` and an opaque-origin `/sandbox/`, manage their own server/browser lifecycle, and write disposable evidence only under `test/scratch/`. `IMD_PLAYWRIGHT` optionally points to an external Playwright `index.mjs`; `IMD_WEBKIT_EXECUTABLE` optionally selects a compatible WebKit wrapper. The worker installed build tools and browser dependencies under `/tmp`; none is delivered. The browser MCP launcher could not find its expected Chrome binary; equivalent production inspection and screenshots ran through Playwright Chromium and WebKit in bounded scripts. The existing ignore file remains unchanged and excludes generated dependencies/caches at every nesting level. `dist/` stays included.
 
 The immutable inherited toolchain has npm advisories affecting development-server behavior (Vite: high; esbuild: low). Dependency changes were prohibited in this assignment. The production export has no npm runtime dependencies; keep development tooling local and plan a separately authorized dependency update.
 

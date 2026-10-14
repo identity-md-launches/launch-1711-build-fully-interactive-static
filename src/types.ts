@@ -45,6 +45,8 @@ export interface Dataset {
   projects: Project[]; graph: Graph; activity: Activity; context: NetworkContext;
   profiles: Record<string, Profile>; sources: Record<'overview' | 'graph' | 'activity' | 'context', SourceInfo>;
 }
+export type SourceKey = keyof Dataset['sources'];
+export interface CrawlProgress { source: SourceKey; state: 'reading' | 'received' | 'cached' }
 export interface ScanResult {
   project: Project; profile?: Profile; profileSource: SourceInfo;
   events: ActivityEvent[]; signal: string; latestAt: number | null; observedAt: number;

@@ -370,3 +370,99 @@ details>p {margin-block:12px;max-width:72ch;color:var(--muted)}
 footer>div {flex-wrap:wrap}
 .art-caption {background:var(--bg)}
 .back-link,.support-copy>.text-link {text-decoration:underline}
+
+/* The swarm is a bounded illustration, never a fabricated relationship graph. */
+.swarm-controls {display:flex;align-items:center;gap:12px;margin-block:0 16px;flex-wrap:wrap}
+.swarm-controls>a {display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-inline-start:auto;color:var(--muted)}
+.swarm-panel {margin-block-end:32px}
+.swarm-heading {display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 22px;border-block-end:1px solid var(--line)}
+.swarm-heading h2 {font-size:var(--base);letter-spacing:0}
+.swarm-heading p {font-size:var(--xs);color:var(--muted);margin:4px 0 0}
+.motion-control {min-height:44px;flex-shrink:0;font-size:var(--xs);font-weight:400}
+.swarm-workspace {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
+.swarm-map {min-width:0;padding-block:12px 20px}
+.swarm-scene {display:block;width:100%;height:auto;color:var(--accent);overflow:visible}
+.swarm-grid-dot {fill:var(--line)}
+.swarm-trails {fill:none;stroke:#415464;stroke-width:1;stroke-dasharray:3 6}
+.swarm-trail.is-followed {stroke:var(--accent);stroke-dasharray:3 8}
+.node-ring {fill:var(--bg);stroke:#415464;stroke-width:1}
+.node-core {fill:var(--accent)}
+.swarm-node text {font:14px var(--sans);fill:var(--text)}
+.swarm-node .node-state {font-size:12px;fill:var(--muted)}
+.swarm-node[data-state='reading'] .node-ring {stroke:var(--accent);stroke-width:2}
+.swarm-node[data-state='stopped'] .node-core {fill:var(--warning)}
+.hub-orbit {fill:var(--bg);stroke:var(--line);stroke-dasharray:3 7}
+.hub-disc {fill:var(--accent)}
+.crawler-halo {fill:var(--accent);stroke:var(--accent);stroke-width:1;fill-opacity:.2}
+.crawler-actor.is-followed .crawler-halo {fill-opacity:1;stroke:var(--focus);stroke-width:2}
+.crawler-actor[data-phase='scanning'] .crawler-halo {stroke-dasharray:3 3}
+.crawler-body {transform-origin:center;transform-box:fill-box}
+.swarm-map-foot {display:flex;align-items:end;justify-content:space-between;gap:12px;padding:0 22px}
+.swarm-map-foot label {display:flex;flex-direction:column;gap:6px;font-size:var(--xs);min-width:0}
+.swarm-map-foot select {font-size:var(--xs);width:100%;max-width:260px;min-height:44px}
+#motion-state {font-size:var(--xs);color:var(--muted);max-width:18ch;text-align:end;padding-block-end:10px}
+.agent-caption {font-size:var(--xs);color:var(--muted);margin:14px 22px 0;min-height:3em;max-width:65ch}
+.activity-terminal {min-width:0;background:var(--bg);padding:20px 22px;display:flex;flex-direction:column;border-inline-start:1px solid var(--line)}
+.terminal-heading {display:flex;justify-content:space-between;align-items:center;margin-block-end:12px}
+.terminal-heading h3 {font-size:var(--sm)}
+.terminal-mark {color:var(--faint);font:var(--base) var(--mono)}
+.terminal-modes {display:flex;gap:16px}
+.terminal-modes button {border:0;border-block-end:2px solid transparent;background:transparent;padding:8px 0;min-height:44px;font-size:var(--xs);color:var(--muted)}
+.terminal-modes button[aria-pressed='true'] {border-color:var(--accent);color:var(--accent)}
+.terminal-context {font-size:var(--xs);color:var(--faint);margin:12px 0}
+.terminal-feed {height:176px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-color:#415464 var(--bg);font-size:var(--xs);overflow-wrap:anywhere}
+.terminal-entry {padding:10px 6px 10px 0;border-block-end:1px solid var(--line);display:grid;grid-template-columns:1fr auto;column-gap:12px;align-items:center}
+.terminal-entry time {grid-column:1/-1;font:var(--xs)/1.6 var(--mono);font-variant-numeric:tabular-nums;color:var(--faint)}
+.terminal-event {color:var(--muted);grid-column:1/-1}
+.terminal-entry>a {color:var(--accent);display:inline-flex;align-items:center;min-height:28px;text-decoration:underline}
+.terminal-evidence {font-size:var(--xs)}
+.request-entry {display:block;line-height:1.8}
+.request-entry code {color:var(--muted);font:var(--xs)/1.8 var(--mono)}
+.terminal-empty {color:var(--muted);padding-block:16px;max-width:40ch}
+.terminal-actions {display:flex;gap:12px;flex-wrap:wrap;margin-block-start:16px}
+.terminal-actions .button {min-height:44px;font-size:var(--xs);font-weight:400;padding:8px 12px}
+.terminal-actions [hidden] {display:none}
+.terminal-status {color:var(--faint);font-size:var(--xs);margin:12px 0 0;min-height:1.5em}
+.swarm-foot {display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 22px;border-block-start:1px solid var(--line);font-size:var(--xs);color:var(--muted)}
+.swarm-foot a {display:inline-flex;align-items:center;min-height:28px;gap:6px;color:var(--accent)}
+@media (prefers-reduced-motion:no-preference) {
+ .swarm-panel .crawler-body {animation:claus-step 700ms ease-in-out infinite alternate}
+ .swarm-panel .arm {transform-box:fill-box;transform-origin:50% 0;animation:claus-arm 900ms ease-in-out infinite alternate}
+ .swarm-panel .arm:nth-child(even) {animation-delay:-450ms;animation-direction:alternate-reverse}
+ .swarm-panel[data-motion='paused'] .crawler-body,.swarm-panel[data-motion='paused'] .arm {animation-play-state:paused}
+ @keyframes claus-step {from {transform:translateY(-1px) rotate(-4deg)} to {transform:translateY(1px) rotate(4deg)}}
+ @keyframes claus-arm {from {transform:rotate(-4deg)} to {transform:rotate(4deg)}}
+}
+@media (max-width:1200px) and (min-width:961px), (max-width:700px) {
+ .swarm-workspace {grid-template-columns:1fr}
+ .swarm-scene {max-width:600px;margin-inline:auto}
+ .activity-terminal {border-inline-start:0;border-block-start:1px solid var(--line)}
+}
+@media (max-width:700px) {
+ .swarm-heading {padding:16px;gap:12px;flex-wrap:wrap}
+ .swarm-heading .button {padding-inline:12px}
+ .swarm-heading h2 {font-size:var(--sm)}
+ .swarm-heading p {max-width:24ch}
+ .swarm-map {padding-block:14px 16px}
+ .swarm-map-foot {padding-inline:16px;flex-wrap:wrap;gap:8px;align-items:center}
+ .swarm-map-foot label {flex:1}
+ .swarm-map-foot select {max-width:100%;font-size:var(--base)}
+ #motion-state {max-width:none;padding:0;text-align:start;flex-basis:100%}
+ .agent-caption {margin:12px 16px 0;min-height:3em}
+ .activity-terminal {padding:16px}
+ .terminal-feed {height:196px}
+ .terminal-entry {column-gap:8px}
+ .swarm-foot {padding:12px 16px;gap:4px}
+ .swarm-controls .button {font-size:var(--xs);min-height:44px}
+ .swarm-controls>a {font-size:var(--xs)}
+}
+@media (forced-colors:active) {
+ .node-ring,.hub-orbit,.crawler-halo {stroke:CanvasText}
+ .swarm-node text,.swarm-node .node-state {fill:CanvasText}
+ .hub-disc,.hub-orbit,.node-ring,.crawler-halo {fill:Canvas}
+ .node-core {fill:CanvasText}
+ .crawler-actor.is-followed .crawler-halo {stroke:Highlight;stroke-width:3}
+ .swarm-trails {stroke:CanvasText}
+ .swarm-trail.is-followed {stroke:Highlight}
+ .terminal-modes button[aria-pressed='true'] {border-color:Highlight;color:Highlight;font-weight:600}
+}

@@ -40,7 +40,7 @@ try{
  });
  await check('Keyboard search finds a Claus project and opens its dedicated intelligence page',async()=>{
   await page.locator('#project-query').fill('AGENT-BLACKBOX');await page.locator('#project-query').press('Enter');
-  await page.waitForURL('**/#directory');assert.equal(await page.locator('.directory-list .project-row').count(),1);
+  await page.waitForURL('**/#directory');await page.locator('.directory-list').waitFor();assert.equal(await page.locator('.directory-list .project-row').count(),1);
   await page.locator('.directory-list .project-row').press('Enter');await page.waitForURL('**/#project=agent-blackbox');await page.locator('.project-heading h1').waitFor();
   assert.equal(await page.locator('h1').innerText(),'Agent Blackbox');assert.match(await page.locator('.project-facts').innerText(),/prj_d745c198/);
   assert.equal(await page.getByRole('link',{name:'Open on Claus',exact:false}).getAttribute('href'),'https://claus.si/c/agent-blackbox');
