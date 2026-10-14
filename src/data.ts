@@ -1,36 +1,38 @@
 import snapshot from './data/snapshot.json' with { type: 'json' };
-import type { Activity, Dataset, Graph, NetworkContext, Profile, Project, ScanResult, SourceInfo } from './types';
+import type { Activity, Dataset, Graph, NetworkContext, Profile, Project, ScanResult, SourceInfo } from './types.ts';
 
 export const CLAUS = 'https://claus.si';
 export const API = 'https://claus-network-api.vercel.app';
 export const SNAPSHOT_AT = snapshot.capturedAt;
 export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const validSlug = (value: string) => value.length <= 63 && SLUG.test(value);
-const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
+export const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+export const finite = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v > 0 && v <= 8_640_000_000_000_000;
 export function projectsFromGraph(graph: Graph): Project[] {
-  return graph.nodes.filter(n => n.kind === 'project' && typeof n.slug === 'string' && validSlug(n.slug)).map(n => ({
+  return [...new Map(graph.nodes.filter(n => n.kind === 'project' && typeof n.slug === 'string' && validSlug(n.slug)).map(n => ({
     id: n.id, slug: n.slug!, name: n.presentation?.name || n.label || n.slug!,
     description: n.description || n.presentation?.description || '', status: n.status || 'unknown',
     updatedAt: finite(n.updatedAt) ? n.updatedAt : null, revision: finite(n.revision) ? n.revision : null
-  }));
+  })).map(p => [p.id, p])).values()];
 }
 export function parseGraph(raw: unknown): Graph {
   if (!record(raw) || !Array.isArray(raw.nodes) || !Array.isArray(raw.edges)) throw new Error('Unexpected graph format');
   if (!raw.nodes.every(n => record(n) && typeof n.id === 'string' && typeof n.kind === 'string')) throw new Error('Invalid graph nodes');
   if (!raw.edges.every(e => record(e) && typeof e.source === 'string' && typeof e.target === 'string' && typeof e.relation === 'string')) throw new Error('Invalid graph edges');
   if (raw.nextCursor != null && typeof raw.nextCursor !== 'string') throw new Error('Invalid graph cursor');
+  if (raw.observedAt != null && !finite(raw.observedAt)) throw new Error('Invalid graph observation time');
   const text = (v: unknown) => typeof v === 'string' ? v : undefined;
   const nodes = raw.nodes.map(n => ({ id: n.id as string, kind: n.kind as string, slug: text(n.slug), label: text(n.label), description: text(n.description), status: text(n.status), updatedAt: finite(n.updatedAt) ? n.updatedAt : undefined, revision: finite(n.revision) ? n.revision : undefined, presentation: record(n.presentation) ? { name: text(n.presentation.name), description: text(n.presentation.description) } : undefined }));
   return { ...raw, nodes, resources: Array.isArray(raw.resources) ? raw.resources.filter(r => record(r) && typeof r.id === 'string' && typeof r.kind === 'string') : [], nextCursor: raw.nextCursor ?? null } as Graph;
 }
 export function parseActivity(raw: unknown): Activity {
   if (!record(raw) || !Array.isArray(raw.events) || !finite(raw.observedAt) || typeof raw.complete !== 'boolean') throw new Error('Unexpected activity format');
-  const events = raw.events.filter(e => record(e) && typeof e.id === 'string' && typeof e.projectId === 'string' && typeof e.kind === 'string' && finite(e.at));
+  const events = [...new Map(raw.events.filter(e => record(e) && typeof e.id === 'string' && typeof e.projectId === 'string' && typeof e.kind === 'string' && finite(e.at) && e.at <= Number(raw.observedAt)).map(e => [e.id, { ...e, project: typeof e.project === 'string' ? e.project : '', href: typeof e.href === 'string' ? e.href : '' }])).values()];
   return { observedAt: raw.observedAt, complete: raw.complete, scanned: typeof raw.scanned === 'number' ? raw.scanned : 0, events } as Activity;
 }
 export function parseContext(raw: unknown): NetworkContext {
   if (!record(raw) || !Array.isArray(raw.projects) || !finite(raw.observedAt)) throw new Error('Unexpected context format');
+  if (raw.nextCursor != null && typeof raw.nextCursor !== 'string') throw new Error('Invalid context cursor');
   return { ...raw, projects: raw.projects.filter(p => record(p) && typeof p.id === 'string' && typeof p.slug === 'string' && validSlug(p.slug)).map(p => ({ ...p, interfaces: Array.isArray(p.interfaces) ? p.interfaces : undefined, services: Array.isArray(p.services) ? p.services : undefined, agents: Array.isArray(p.agents) ? p.agents : undefined })), nextCursor: typeof raw.nextCursor === 'string' ? raw.nextCursor : null } as NetworkContext;
 }
 export function parseProfile(raw: unknown, slug: string, source: string): Profile {
@@ -41,41 +43,54 @@ export function parseProfile(raw: unknown, slug: string, source: string): Profil
     published: raw.published, updatedAt: finite(raw.updatedAt) ? raw.updatedAt : null,
     revision: finite(raw.revision) ? raw.revision : null, description: typeof raw.description === 'string' ? raw.description : '',
     counts: { agents: count('agents'), services: count('services'), results: count('results'), releases: count('releases'), signals: count('signals'), applications: raw.application ? 1 : 0 },
-    source, capturedAt: Date.now()
+    source, capturedAt: Date.now(),
+    releases: parseReleases(raw.releases),
+    agents: Array.isArray(raw.agents) ? raw.agents.filter(a => record(a) && typeof a.id === 'string' && typeof a.name === 'string') as {id:string;name:string}[] : [],
+    evidence: record(raw.evidence) ? { reviews: Array.isArray(raw.evidence.reviews) ? raw.evidence.reviews : [], decisions: Array.isArray(raw.evidence.decisions) ? raw.evidence.decisions : [], deployments: Array.isArray(raw.evidence.deployments) ? raw.evidence.deployments : [] } : undefined
   };
 }
 const cachedSource = (url: string, at = SNAPSHOT_AT, complete = true): SourceInfo => ({ mode: 'cached', at, complete, url });
 export function cachedDataset(): Dataset {
-  const graph = structuredClone(snapshot.graph) as Graph;
+  const graph = parseGraph(structuredClone(snapshot.graph));
   graph.resources = [...new Map(graph.resources.map(resource => [resource.id, resource])).values()];
   graph.edges = [...new Map(graph.edges.map(edge => [`${edge.source}:${edge.target}:${edge.relation}`, edge])).values()];
   return {
-    projects: projectsFromGraph(snapshot.overview as Graph), graph,
+    projects: projectsFromGraph(parseGraph(snapshot.overview)), graph,
     activity: structuredClone(snapshot.activity), context: structuredClone(snapshot.context) as NetworkContext,
-    profiles: structuredClone(snapshot.profiles) as unknown as Record<string, Profile>,
+    profiles: Object.fromEntries(Object.entries(snapshot.profiles).map(([slug, entry]) => [slug, { ...parseProfile(entry.raw, slug, entry.source), capturedAt: entry.capturedAt, mode: 'cached' as const }])),
     sources: {
-      overview: cachedSource(`${CLAUS}/network.json?view=projects`, snapshot.overview.observedAt),
-      graph: cachedSource(`${CLAUS}/network.json`, snapshot.graph.observedAt),
-      activity: cachedSource(`${CLAUS}/api/network-activity`, snapshot.activity.observedAt, snapshot.activity.complete),
-      context: cachedSource(`${CLAUS}/api/network-context`, snapshot.context.observedAt, snapshot.context.graphComplete && snapshot.context.detailsComplete)
+      overview: cachedSource(snapshot.sources?.overview?.url || `${CLAUS}/network.json?view=projects`, snapshot.overview.observedAt),
+      graph: cachedSource(snapshot.sources?.graph?.url || `${CLAUS}/network.json`, snapshot.graph.observedAt),
+      activity: cachedSource(snapshot.sources?.activity?.url || `${CLAUS}/api/network-activity`, snapshot.activity.observedAt, snapshot.activity.complete),
+      context: cachedSource(snapshot.sources?.context?.url || `${CLAUS}/api/network-context`, snapshot.context.observedAt, snapshot.context.graphComplete && snapshot.context.detailsComplete)
     }
   };
 }
 export async function publicJSON(url: string, signal: AbortSignal): Promise<unknown> {
   const parsed = new URL(url);
-  if (![CLAUS, API].includes(parsed.origin)) throw new Error('Origin is not declared');
+  if (parsed.username || parsed.password || ![CLAUS, API].includes(parsed.origin)) throw new Error('Origin is not declared');
+  if ((cooldowns.get(parsed.origin) || 0) > Date.now()) throw new RateLimitError(cooldowns.get(parsed.origin)!);
   const timeout = AbortSignal.timeout(15000);
   const response = await fetch(url, { credentials: 'omit', redirect: 'error', signal: AbortSignal.any([signal, timeout]), headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    if (response.status === 429) { const retry = response.headers.get('Retry-After'); const seconds = retry && /^\d+$/.test(retry) ? Number(retry) : retry ? Math.max(0, (Date.parse(retry) - Date.now()) / 1000) : 60; const until = Date.now() + Math.max(60000, Number.isFinite(seconds) ? seconds * 1000 : 60000); cooldowns.set(parsed.origin, until); throw new RateLimitError(until); }
+    throw new Error(`HTTP ${response.status}`);
+  }
   // Bound remote responses before parsing; never execute project-authored text or URLs.
-  const text = await response.text();
-  if (text.length > 2_000_000) throw new Error('Public response exceeded the scan limit');
-  return JSON.parse(text);
+  const limit = 2_000_000;
+  if (Number(response.headers.get('Content-Length')) > limit) { await response.body?.cancel(); throw new Error('Public response exceeded the scan limit'); }
+  if (!response.body) throw new Error('Empty public response');
+  const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
+  try {
+    for (;;) { const {done,value} = await reader.read(); if(done) break; size += value.byteLength; if(size > limit) { await reader.cancel(); throw new Error('Public response exceeded the scan limit'); } chunks.push(value); }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(size); let offset = 0; for(const chunk of chunks) { bytes.set(chunk,offset); offset += chunk.byteLength; }
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 export async function getWithFallback(primary: string, fallback: string, signal: AbortSignal): Promise<{ raw: unknown; url: string }> {
   try { return { raw: await publicJSON(primary, signal), url: primary }; }
   catch (error) {
-    if (signal.aborted) throw error;
+    if (signal.aborted || error instanceof RateLimitError) throw error;
     return { raw: await publicJSON(fallback, signal), url: fallback };
   }
 }
@@ -149,12 +164,14 @@ export async function getProfile(project: Project, live: boolean, data: Dataset,
   if (live) {
     try {
       const { raw, url } = await getWithFallback(`${CLAUS}/network.json?project=${encodeURIComponent(project.slug)}`, `${API}/v1/public/projects/${encodeURIComponent(project.slug)}`, signal);
-      const profile = parseProfile(raw, project.slug, url);
+      const profile = { ...parseProfile(raw, project.slug, url), mode: 'live' as const };
+      if (profile.projectId !== project.id) throw new Error('Project identity changed');
       return { profile, source: { mode: 'live', at: profile.capturedAt, complete: true, url } };
     } catch (error) { if (signal.aborted) throw error; }
   }
-  const profile = data.profiles[project.slug];
-  return { profile, source: { mode: 'cached', at: profile?.capturedAt || SNAPSHOT_AT, complete: !!profile, url: `${CLAUS}/network.json?project=${project.slug}`, note: live ? 'Live profile unavailable; cached profile if present' : undefined } };
+  const cached = data.profiles[project.slug];
+  const profile = cached?.projectId === project.id ? { ...cached, mode:'cached' as const } : undefined;
+  return { profile, source: { mode: profile?.mode || 'cached', at: profile?.capturedAt || SNAPSHOT_AT, complete: !!profile, url: `${CLAUS}/network.json?project=${project.slug}`, note: live ? 'Live profile unavailable; cached profile if present' : undefined } };
 }
 export function assess(project: Project, profile: Profile | undefined, profileSource: SourceInfo, data: Dataset): ScanResult {
   const events = data.activity.events.filter(e => e.projectId === project.id).sort((a,b) => b.at - a.at);
@@ -179,3 +196,17 @@ export function displayDate(at: number | null): string {
 }
 export function displayTime(at: number): string { return new Date(at).toISOString().slice(11,19); }
 export function escapeHTML(value: unknown): string { return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]!)); }
+
+export class RateLimitError extends Error {
+  retryAt: number;
+  constructor(retryAt: number) { super('Provider rate limit; retry later'); this.retryAt = retryAt; }
+}
+const cooldowns = new Map<string, number>();
+export function releaseURL(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try { const url = new URL(value); return url.origin === 'https://claus-network-sites.vercel.app' && /^\/r\/[a-f0-9]{64}\/index\.html$/.test(url.pathname) && !url.username && !url.password && !url.search && !url.hash ? url.href : null; } catch { return null; }
+}
+export function parseReleases(raw: unknown): import('./types.ts').Release[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Map(raw.filter(r => record(r) && typeof r.id === 'string' && /^sha256:[a-f0-9]{64}$/.test(r.id) && finite(r.createdAt) && releaseURL(r.url) && typeof r.url === 'string' && r.url.includes(r.id.slice(7)) && (r.expiresAt == null || finite(r.expiresAt))).map(r => [r.id, { id:r.id, url:r.url, createdAt:r.createdAt, expiresAt:r.expiresAt ?? null }])).values()].sort((a,b) => b.createdAt-a.createdAt);
+}

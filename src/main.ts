@@ -1,273 +1,144 @@
 import './style.css';
 import { octopus } from './mascot';
-import { cachedDataset, refreshDataset, getProfile, assess, filterProjects, displayDate, displayTime, escapeHTML as esc, SNAPSHOT_AT, validSlug, CLAUS } from './data';
-import type { Dataset, Project, ScanResult, SourceMode } from './types';
+import { cachedDataset, refreshDataset, getProfile, displayDate, escapeHTML as esc, CLAUS, SNAPSHOT_AT, validSlug } from './data';
+import { activityDays, agentDefinitions, homeProjects, launches, updates, similarityFindings, publishedRiskNotes, verifiedDeployments, verifiedRelationships, uniqueEvents } from './intelligence';
+import type { Project, SourceInfo, Finding } from './types';
 
-const el = <T extends HTMLElement = HTMLElement>(selector: string): T => {
-  const node = document.querySelector<T>(selector);
-  if (!node) throw new Error(`Missing interface element: ${selector}`);
-  return node;
+const TIP_ADDRESS = '0x96126Cd68400b80EB1cd1FC51A639B60BD732Fd6';
+let data = cachedDataset();
+let query = ''; let scope='home'; let sort='updated'; let eventKind='all';
+let page=1; let busy=false; let liveAttempted=false; let controller:AbortController|null=null;
+let lastResult=''; let logs:string[]=[]; let detailState=''; let detailSource:SourceInfo|undefined;
+const main = document.querySelector<HTMLElement>('#main')!;
+const paths:Record<string,string>={overview:'Overview',directory:'Project directory',activity:'Activity',agents:'Crawler agents',sources:'Data & sources',support:'Support the Crawl'};
+const icons:Record<string,string>={
+  overview:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  directory:'<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M9 10v10M7 5V3m10 2V3"/>',
+  activity:'<path d="M2 12h5l3-8 4 16 3-8h5"/>',
+  agents:'<circle cx="12" cy="12" r="4"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4M5 5l3 3m8 8 3 3M5 19l3-3m8-8 3-3"/>',
+  sources:'<path d="M5 3h10l4 4v14H5zM14 3v5h5M8 12h8m-8 4h8"/>',
+  heart:'<path d="M20.8 4.6c-2.3-2.4-6-1.9-8.8 1.2C9.2 2.7 5.5 2.2 3.2 4.6c-2.4 2.5-1.3 6 1 8.4L12 21l7.8-8c2.3-2.4 3.4-5.9 1-8.4Z"/>',
+  search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
+  arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>',
+  refresh:'<path d="M20 8a8 8 0 1 0 0 8M20 3v5h-5"/>',
+  shield:'<path d="m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6Z"/><path d="M12 7v6m0 3v1"/>',
+  link:'<path d="m10 14 4-4m-6 6-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m2 2 2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0"/>',
+  copy:'<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>'
 };
-const query = el<HTMLInputElement>('#project-query');
-const crawlButton = el<HTMLButtonElement>('#crawl');
-const log = el('#log');
-const crawler = el('#crawler');
-const positions = [ { x: 19, y: 17 }, { x: 50, y: 13 }, { x: 81, y: 17 }, { x: 81, y: 82 }, { x: 50, y: 87 }, { x: 19, y: 82 } ];
-const origin = { x: 50, y: 47 };
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-let data: Dataset = cachedDataset();
-let mode: SourceMode = 'cached';
-let busy = false;
-let controller: AbortController | null = null;
-let listMode: 'featured' | 'all' | 'scanned' = 'featured';
-let selectedSlug = 'agent-blackbox';
-let mapProjects: Project[] = [];
-let results = new Map<string, ScanResult>();
-let following = true;
-let moveAnimation: Animation | null = null;
-let logEntries: { at: number; tag: string; message: string; kind: string }[] = [];
-let crawlSequence = 0;
-let lastCrawlMode: SourceMode = 'cached';
-
-function announce(message: string) { el('#announcement').textContent = message; }
-function featuredProjects(): Project[] {
-  const preferred = ['agent-blackbox', 'claus-up-down', 'agent-minimum', 'oracle-drift', 'sepolia-wallet-7be29de3', 'blackbox-notary-7be29de3'];
-  const visible = new Set(data.context.projects.map(p => p.slug));
-  return [...data.projects.filter(p => visible.has(p.slug))].sort((a,b) => {
-    const ai = preferred.indexOf(a.slug); const bi = preferred.indexOf(b.slug);
-    return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
-  }).slice(0,6);
+function icon(name:string) { return `<svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||icons.directory}</svg>`; }
+document.querySelectorAll<HTMLElement>('[data-icon]').forEach(e=>e.innerHTML=icon(e.dataset.icon!));
+const announce = (s:string)=>{document.querySelector('#announcement')!.textContent=s;};
+const projectLink = (p:Project)=>`#project=${encodeURIComponent(p.slug)}`;
+const time = (n:number)=>`${displayDate(n)} · ${new Date(n).toISOString().slice(11,16)} UTC`;
+const badge=(text:string,cls='')=>`<span class="badge ${cls}">${esc(text)}</span>`;
+const sourceLabel=(s:SourceInfo)=>`${s.mode==='live'?'Live read':'Recorded'} · ${time(s.at)}${s.complete?'':' · partial'}`;
+const external=(url:string,label:string)=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)} <span aria-hidden="true">↗</span></a>`;
+const title=(heading:string,description:string,action='')=>`<div class="page-heading"><div><h1 tabindex="-1">${heading}</h1><p>${description}</p></div>${action}</div>`;
+const refreshButton=()=>`<button type="button" class="button ${busy?'is-loading':''}" data-action="refresh" ${busy?'disabled':''}>${icon('refresh')}${busy?'Reading sources…':'Refresh sources'}</button>${busy?'<button type="button" class="button" data-action="stop">Stop</button>':''}`;
+function sourceStrip() {
+ const live=Object.values(data.sources).filter(s=>s.mode==='live').length;
+ return `<div class="source-strip"><div><span class="status-dot"></span><strong>${live===4?'Live responses':live?`${live}/4 sources live`:'Recorded public data'}</strong><span class="source-date">${live?'Freshness varies by source':`${displayDate(SNAPSHOT_AT)} snapshot`}</span></div><a href="#sources">View coverage ${icon('arrow')}</a></div>${lastResult?`<p class="feedback" role="status">${esc(lastResult)}</p>`:''}`;
 }
-function addLog(tag: string, message: string, kind = '') {
-  const entry = { at: Date.now(), tag, message, kind };
-  logEntries.push(entry);
-  el('#copy-log').textContent = 'Copy log';
-  const row = document.createElement('div'); row.className = `log-entry ${kind}`;
-  const time = document.createElement('time'); time.dateTime = new Date(entry.at).toISOString(); time.textContent = displayTime(entry.at).slice(3);
-  const code = document.createElement('code');
-  const label = document.createElement('span'); label.className = 'log-tag'; label.textContent = `[${tag}] `;
-  code.append(label, document.createTextNode(message)); row.append(time, code); log.append(row);
-  if (following) log.scrollTop = log.scrollHeight;
-  el('#log-count').textContent = `${logEntries.length} steps recorded`;
+function avatar(p:Project) {return `<span class="project-avatar" aria-hidden="true">${esc(p.name.replace(/[^a-z0-9]/gi,'').slice(0,2).toUpperCase())}</span>`;}
+function projectRow(p:Project, meta:string, action='View project') {
+ return `<a class="project-row" href="${projectLink(p)}">${avatar(p)}<span class="project-label"><strong>${esc(p.name)}</strong><span class="slug">${esc(p.slug)}</span></span><span class="row-meta">${meta}</span><span class="row-arrow" aria-label="${action}">${icon('arrow')}</span></a>`;
 }
-function setMode(next: SourceMode) {
-  if (busy) return;
-  mode = next;
-  el('#mode-demo').setAttribute('aria-pressed', String(mode === 'cached'));
-  el('#mode-live').setAttribute('aria-pressed', String(mode === 'live'));
-  renderSourceNote(false);
+function searchBox() {return `<div class="search-box"><label class="sr-only" for="project-query">Search Claus projects by name, slug or project ID</label>${icon('search')}<input id="project-query" type="search" name="project" autocomplete="off" placeholder="Search Claus projects…" value="${esc(query)}" aria-describedby="search-help"><button class="primary" type="button" data-action="search">Explore projects ${icon('arrow')}</button></div><p id="search-help" class="search-help">Search by project name, slug or ID.</p>`;}
+function networkArt() {return `<div class="network-art" role="img" aria-label="The black Claus octopus exploring an illustrated network"><svg class="network-lines" viewBox="0 0 400 230" aria-hidden="true"><g fill="none" stroke="#294253"><path d="M0 45h80l100 70 100-45h120M0 180h95l85-65 115 65h105M180 0v230"/><circle cx="180" cy="115" r="96" stroke-dasharray="3 7"/><circle cx="180" cy="115" r="73"/></g><g fill="#7da6bf"><circle cx="80" cy="45" r="4"/><circle cx="295" cy="180" r="4"/><circle cx="280" cy="70" r="4"/><circle cx="95" cy="180" r="4"/></g></svg><div class="octopus-disc">${octopus()}</div><span class="art-caption">A curious pair of eyes. Eight arms on the trail.</span></div>`;}
+function overview() {
+ const launchList=launches(data);const publicCount=homeProjects(data).length;const latestIds=new Set(launchList.slice(0,4).map(x=>x.project.id));
+ return `<section class="intro"><div><h1 tabindex="-1">Every Claus launch<br>leaves a trail<span class="accent">.</span></h1><p>Discover projects. Trace releases. Follow the Claus ecosystem.</p><div class="intro-actions"><a class="text-link" href="#directory">Explore the directory ${icon('arrow')}</a></div></div>${networkArt()}</section>
+ ${searchBox()}${sourceStrip()}
+ <div class="metrics"><div><span>Home-visible projects</span><strong>${publicCount}<small>in this observation</small></strong></div><div><span>Registry records</span><strong>${data.projects.length}<small>includes technical references</small></strong></div><div><span>Returned activity</span><strong>${uniqueEvents(data).length}<small>events in the source feed</small></strong></div><div><span>Collection mode</span><strong class="metric-word">On demand<small>No continuous service connected</small></strong></div></div>
+ <div class="dashboard-grid"><section class="panel launch-panel"><div class="section-heading"><h2>Latest Claus launches</h2><a href="#activity">View activity ${icon('arrow')}</a></div><p class="section-note">Public profile publications · ${sourceLabel(data.sources.activity)}</p><div>${launchList.slice(0,4).map(({project,event})=>projectRow(project,`${badge('Profile published')}<time datetime="${new Date(event.at).toISOString()}">${displayDate(event.at)}</time>`)).join('')||empty('No publications returned','A missing event does not establish that no projects launched.','View directory','#directory')}</div><div class="panel-foot">A published project is not automatically a token launch.</div></section>
+ <section class="panel updates-panel"><div class="section-heading"><h2>Recently updated</h2><a href="#directory">Browse ${icon('arrow')}</a></div><p class="section-note">Public profile timestamps · ${data.sources.overview.mode==='live'?'live read':'recorded'}</p>${updates(data).slice(0,4).map(p=>projectRow(p,`<time>${displayDate(p.updatedAt)}</time><span class="muted">Profile revision ${p.revision??'unknown'}</span>`)).join('')}</section>
+ <section class="panel trend-panel"><div class="section-heading"><h2>Ecosystem activity</h2><span class="muted">7 UTC days</span></div><p class="section-note">Returned events, grouped by day. A partial history, not ecosystem volume.</p>${trendChart()}<div class="chart-legend"><span><i></i>Profile publications</span><span><i></i>Other public events</span><a href="#activity">Inspect events ${icon('arrow')}</a></div></section>
+ <section class="panel risk-panel"><div class="section-heading"><h2>Verified risk signals</h2>${icon('shield')}</div><div class="risk-empty"><span class="risk-symbol">${icon('shield')}</span><h3>No verified risk feed connected</h3><p>Public records are available. A complete security assessment is not.</p><a href="#agents">Inspect evidence &amp; hypotheses ${icon('arrow')}</a></div><div class="panel-foot">Missing findings do not establish safety.</div></section></div>
+ <section class="directory-preview"><div class="section-heading"><h2>Discover the Claus ecosystem</h2><a href="#directory">All ${publicCount} Home-visible projects ${icon('arrow')}</a></div><div class="discovery-grid">${homeProjects(data).filter(p=>!latestIds.has(p.id)).slice(0,3).map(p=>`<a class="discovery-item" href="${projectLink(p)}"><div class="discovery-title">${avatar(p)}<h3>${esc(p.name)}</h3></div><p>${esc(p.description||'No public description supplied.')}</p><span class="text-link">Follow the trail ${icon('arrow')}</span></a>`).join('')}</div></section>`;
 }
-function renderSourceNote(afterRead = true) {
-  const note = el('#source-note'); note.classList.remove('is-warning');
-  if (mode === 'cached') note.textContent = afterRead ? `Cached · ${displayDate(SNAPSHOT_AT)} · Offline ready` : `Cached demo selected · Replays ${displayDate(SNAPSHOT_AT)} on crawl`;
-  else if (!afterRead) note.textContent = 'Live data selected · Public sources refresh when you crawl';
-  else {
-    const live = Object.values(data.sources).filter(s => s.mode === 'live').length;
-    note.textContent = live === 4 ? 'Live public data · Source observation times are in the report' : `${live}/4 sources live · Remaining sources use the ${displayDate(SNAPSHOT_AT)} cache`;
-    note.classList.toggle('is-warning', live < 4);
-  }
+function trendChart() {
+ const days=activityDays(data);const max=Math.max(1,...days.map(d=>d.total));
+ return `<div class="chart" role="group" aria-label="Activity counts by UTC day">${days.map(d=>`<div class="chart-column"><span class="chart-value">${d.total}</span><div class="bar-space"><div class="bar" style="height:${d.total/max*100}%"><span style="height:${d.total?d.updates/d.total*100:0}%"></span></div></div><span>${new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',timeZone:'UTC'}).format(d.at)}</span><span class="sr-only">: ${d.publications} profile publications, ${d.updates} other events</span></div>`).join('')}</div>`;
 }
-function renderSources() {
-  el('#source-table').innerHTML = `<table class="source-table"><thead><tr><th scope="col">Source</th><th scope="col">Mode / observed</th><th scope="col">Coverage</th></tr></thead><tbody>${Object.entries(data.sources).map(([key, s]) => `<tr><td><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(key)} ↗</a></td><td>${s.mode}<br>${displayDate(s.at)}</td><td>${s.complete ? 'Complete response' : 'Partial response'}</td></tr>`).join('')}</tbody></table>`;
+function empty(heading:string,body:string,action?:string,href?:string) {return `<div class="empty-state">${icon('search')}<h3>${heading}</h3><p>${body}</p>${action?`<a class="button" href="${href}">${action}</a>`:''}</div>`;}
+function directory() { return `${title('Project directory','Find projects registered and published within Claus.')}${sourceStrip()}${searchBox()}<div class="filter-bar"><div class="segmented" role="group" aria-label="Directory scope"><button data-scope="home" aria-pressed="${scope==='home'}">Home-visible <span>${homeProjects(data).length}</span></button><button data-scope="all" aria-pressed="${scope==='all'}">Full registry <span>${data.projects.length}</span></button></div><label class="sort-label">Sort by <select id="sort"><option value="updated" ${sort==='updated'?'selected':''}>Latest update</option><option value="name" ${sort==='name'?'selected':''}>Project name</option></select></label></div><div id="directory-results"></div><details class="creator-note"><summary>Looking for a creator?</summary><p>The verified public feeds do not expose a reliable owner identity. Search names or public descriptions; projects are not grouped by creator. Published agent identities are not proof of ownership.</p></details>`; }
+function directoryResults() {
+ let list=scope==='home'?homeProjects(data):[...data.projects];const q=query.trim().toLowerCase();
+ list=list.filter(p=>[p.slug,p.name,p.description,p.id].some(s=>s.toLowerCase().includes(q)));
+ list.sort(sort==='name'?(a,b)=>a.name.localeCompare(b.name):(a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+ const pages=Math.max(1,Math.ceil(list.length/12));page=Math.min(page,pages);
+ const found=document.querySelector('#directory-results');if(!found)return;
+ found.innerHTML=`<p class="result-count" role="status">${list.length} matching ${list.length===1?'project':'projects'} · ${scope==='home'?'Home inventory':'Includes Claus technical references'}${q?' · search applied':''}</p><div class="panel directory-list">${list.slice((page-1)*12,page*12).map(p=>projectRow(p,`${badge('Registered')}<time>${displayDate(p.updatedAt)}</time>`)).join('')||empty('No Claus projects match','Try a project name or slug, or include the full registry.')}</div>${list.length===0?'<button class="button" data-action="clear">Clear search &amp; filters</button>':''}${pages>1?`<div class="pagination"><button class="button" data-action="previous" ${page===1?'disabled':''}>Previous</button><span>Page ${page} of ${pages}</span><button class="button" data-action="next" ${page===pages?'disabled':''}>Next</button></div>`:''}`;
 }
-function edgeFor(project: Project) { return data.graph.edges.find(e => e.relation === 'registered_with' && ((e.source === project.id && e.target === 'claus') || (e.target === project.id && e.source === 'claus'))); }
-function renderMap(projects: Project[]) {
-  mapProjects = projects.slice(0,6);
-  crawler.style.left = `${origin.x}%`; crawler.style.top = `${origin.y}%`;
-  el('#map-nodes').innerHTML = mapProjects.map((p,i) => `<button type="button" class="map-node${results.has(p.slug) ? ' visited' : ''}" data-node="${esc(p.slug)}" style="left:${positions[i].x}%;top:${positions[i].y}%" aria-label="Inspect ${esc(p.name)}"><span class="node-core" aria-hidden="true">${results.has(p.slug) ? '✓' : String(i+1).padStart(2,'0')}</span><span class="node-label">${esc(p.slug)}</span></button>`).join('');
-  const edgeSVG = mapProjects.map((p,i) => edgeFor(p) ? `<line id="edge-${i}" class="graph-edge${results.has(p.slug) ? ' visited' : ''}" x1="500" y1="282" x2="${positions[i].x*10}" y2="${positions[i].y*6 - 9}"/>` : '').join('');
-  const projectEdges = data.graph.edges.filter(e => e.relation !== 'registered_with' && mapProjects.some(p => p.id === e.source) && mapProjects.some(p => p.id === e.target));
-  el('#connections').innerHTML = edgeSVG + projectEdges.map(e => {
-    const a = positions[mapProjects.findIndex(p => p.id === e.source)]; const b = positions[mapProjects.findIndex(p => p.id === e.target)];
-    return `<line class="graph-edge service" x1="${a.x*10}" y1="${a.y*6-9}" x2="${b.x*10}" y2="${b.y*6-9}"/>`;
-  }).join('');
-  el('#map-count').textContent = `${mapProjects.length} project node${mapProjects.length === 1 ? '' : 's'}`;
+function eventName(kind:string) {return ({'project.published':'Profile published','project.updated':'Profile updated','interface.created':'Website release','result.published':'Result published'} as Record<string,string>)[kind]||kind;}
+function activity() {
+ const events=uniqueEvents(data).filter(e=>eventKind==='all'||e.kind===eventKind).sort((a,b)=>b.at-a.at);
+ return `${title('Ecosystem activity','A trail of public Claus publications, releases and results.',refreshButton())}${sourceStrip()}<div class="filter-bar"><label>Event type <select id="event-kind">${[['all','All events'],['project.published','Profile publications'],['project.updated','Profile updates'],['interface.created','Website releases'],['result.published','Published results']].map(([v,n])=>`<option value="${v}" ${eventKind===v?'selected':''}>${n}</option>`).join('')}</select></label><span class="muted">${events.length} returned events</span></div><p class="section-note">${sourceLabel(data.sources.activity)}. Feed completeness applies only to its selected public scope.</p><div class="panel event-list">${events.map(e=>{const p=data.projects.find(p=>p.id===e.projectId);return `<div class="event-row"><span class="event-node" aria-hidden="true">${icon(e.kind==='interface.created'?'sources':'activity')}</span><div><strong>${esc(eventName(e.kind))}</strong><span>${p?`<a href="${projectLink(p)}">${esc(p.name)}</a>`:esc(e.project)}</span></div><time datetime="${new Date(e.at).toISOString()}">${time(e.at)}</time>${external(data.sources.activity.url,'Source')}</div>`;}).join('')||empty('No events of this type','Choose another event type. This feed is a bounded public observation.')}</div>`;
 }
-function currentProjects() {
-  const search = query.value.trim();
-  if (search) return filterProjects(data.projects, search);
-  if (listMode === 'featured') return featuredProjects();
-  if (listMode === 'scanned') return [...results.values()].map(r => r.project);
-  return data.projects;
+function findingHTML(f:Finding) {return `<article class="finding"><div>${badge(f.kind==='hypothesis'?'Hypothesis':'Published evidence',f.kind==='hypothesis'?'warning':'')}<span class="muted">${displayDate(f.observedAt)}</span></div><h3>${esc(f.title)}</h3><p>${esc(f.explanation)}</p><div class="finding-links">${f.projectIds.map(id=>{const p=data.projects.find(p=>p.id===id);return p?`<a href="${projectLink(p)}">${esc(p.slug)}</a>`:'';}).join('')}${f.sources.map((s,i)=>external(s,`Source${f.sources.length>1?' '+(i+1):''}`)).join('')}<span class="muted">${f.confidence==='high'?'High confidence in attribution':'Low confidence in relationship'}</span></div></article>`;}
+function agents() {const similar=similarityFindings(data);const notes=Object.values(data.profiles).filter(p=>data.projects.some(x=>x.id===p.projectId)).flatMap(publishedRiskNotes).sort((a,b)=>b.observedAt-a.observedAt);return `${title('Crawler agents','Seven focused modules. One Claus-native trail.',refreshButton())}${sourceStrip()}<div class="notice"><strong>On-demand in this browser</strong><p>Refresh reads public sources once. The persistent crawler is included in the source, but no background service is connected to this site. Watchlists and notifications are planned.</p></div><div class="agent-grid">${agentDefinitions.map((a,i)=>`<article class="agent"><span class="agent-number">0${i+1}</span><div><h2>${a.name}</h2><p>${a.description}</p><span class="muted">${a.id==='history'?'Project history available · creator identity unavailable':'Available on demand'}</span></div></article>`).join('')}</div><section class="panel log-panel"><div class="section-heading"><h2>Crawl log</h2><button class="button" data-action="export">Export observations ${icon('arrow')}</button></div><pre class="crawl-log" role="log" aria-live="off" tabindex="0" aria-label="Actual crawl steps">${esc(logs.length?logs.join('\n'):'No refresh started in this session.\nThe recorded snapshot is ready to explore.')}</pre></section><section class="findings-section"><h2>Name similarity hypotheses</h2><p class="section-note">Exact normalized name matches across distinct registry IDs. These are not verified impersonation findings.</p>${similar.map(findingHTML).join('')||empty('No exact name overlaps found','This check covers the loaded registry only.')}</section><section class="findings-section"><h2>Published review caveats</h2><p class="section-note">The latest ${Math.min(6,notes.length)} of ${notes.length} returned caveats, quoted from public Claus decisions. These establish what the review said, not current malicious behavior. Export observations for all returned notes.</p>${notes.slice(0,6).map(findingHTML).join('')||empty('No caveats returned','This is not a safety rating.')}</section>`;}
+function sources() { return `${title('Data & sources','Know what the crawler can see, and what it cannot.',refreshButton())}${sourceStrip()}<div class="panel source-list">${Object.entries(data.sources).map(([key,s])=>`<div class="source-row"><div><h2>${({overview:'Project registry',graph:'Relationships & resources',activity:'Public activity',context:'Home-visible inventory'} as Record<string,string>)[key]}</h2><p>${sourceLabel(s)}</p>${s.note?`<p class="warning-text">${esc(s.note)}</p>`:''}</div>${external(s.url,'Open source')}</div>`).join('')}</div><div class="information-grid"><section><h2>Real records, recorded honestly</h2><p>The default view uses public responses captured on ${displayDate(SNAPSHOT_AT)}. It makes no network requests until you refresh. There are no fictional demo projects, random counters or simulated live events.</p><p>Each source keeps its own timestamp and coverage. A failed request keeps its labeled cached record. Cached data can include projects subsequently withdrawn or changed.</p></section><section><h2>What counts as a launch?</h2><p>A “launch” here is a public project profile publication reported by Claus. A website release is a separate event. Neither establishes a token launch or the original creation time.</p><p>The full registry includes technical references. Home-visible projects use the narrower official Home inventory.</p></section><section><h2>Evidence has boundaries</h2><p>Descriptions are project-authored claims. Published review caveats are attributed to their source, not independent audits by Claus Crawl. Similar names do not establish shared owners.</p><p>Owner identities, verified owner wallets and complete transaction histories are not exposed by the feeds used here. Verified deployment evidence is shown only when Claus supplies it.</p></section><section><h2>Monitoring &amp; access</h2><p>Public reads need no credentials. There is no continuous service connected. The source includes a persistent, schedulable crawler for an operator-run backend.</p><p>Claus static hosting cannot run scheduled crawlers. Private operations need server-side authorization and are not used by this site.</p></section></div><div class="source-links">${external(`${CLAUS}/build.txt`,'Official integration guide')}${external(`${CLAUS}/docs/project-uis`,'Static publishing documentation')}${external('https://claus-network-api.vercel.app/openapi.json','API schema')}</div>`; }
+function support() {return `${title('Support the Crawl','Help keep curious tentacles on the trail.')}<section class="support-layout"><div class="support-copy"><div class="support-mascot">${octopus()}</div><h2>Support Claus Crawl</h2><p>Contributions help support development, infrastructure, and future Claus ecosystem features.</p><p>Tips are voluntary support. They do not provide tokens, ownership, special access, or financial returns.</p><a href="#overview" class="text-link">Back to the ecosystem ${icon('arrow')}</a></div><div class="panel tip-panel"><div class="section-heading"><h2>Wallet address</h2>${icon('heart')}</div><label for="tip-address">Recipient address</label><textarea id="tip-address" readonly rows="2" spellcheck="false">${TIP_ADDRESS}</textarea><button class="primary" data-action="copy-address">${icon('copy')}Copy Address</button><p id="copy-status" class="copy-status" role="status">Copy the complete address, or scan the QR code.</p><div class="qr-row"><img src="./support-qr.svg" width="156" height="156" alt="QR code containing the displayed recipient address"><p>Address only.<br>No network or amount is encoded.</p></div><div class="network-warning"><strong>Confirm the receiving network first</strong><p>Supported receiving networks have not been verified. Confirm the network with the recipient before sending; an address alone does not establish support.</p></div><p class="muted">Choose your own wallet and explicitly approve any transfer there. This site never initiates a transaction or asks for wallet credentials.</p></div></section>`;}
+function projectPage(slug:string) {
+ const p=data.projects.find(p=>p.slug===slug);if(!p)return `${title('Project not in this observation','This slug was not returned by the loaded Claus registry.')}<div class="notice"><p>It may be newer, withdrawn, private, or outside Claus. Refresh sources to check.</p>${refreshButton()}<a class="button" href="#directory">Browse projects</a></div>`;
+ const available=data.profiles[p.slug];const profile=available?.projectId===p.id?available:undefined;const src=detailSource||{mode:profile?.mode||'cached' as const,at:profile?.capturedAt||SNAPSHOT_AT,complete:!!profile,url:profile?.source||`${CLAUS}/network.json?project=${p.slug}`};
+ const releases=profile?.releases||[];const events=uniqueEvents(data).filter(e=>e.projectId===p.id).sort((a,b)=>b.at-a.at);const deployments=verifiedDeployments(profile);const notes=publishedRiskNotes(profile);const relations=verifiedRelationships(data,p);const similarities=similarityFindings(data).filter(f=>f.projectIds.includes(p.id));
+ return `<a class="back-link" href="#directory">← Project directory</a><div class="project-heading">${avatar(p)}<div><h1 tabindex="-1">${esc(p.name)}</h1><span class="slug">${esc(p.slug)}</span></div>${badge(profile?.published?'Published profile':p.status)}</div><p class="project-description">${esc(profile?.description||p.description||'No public description supplied.')}</p><p class="section-note">Project-authored description. ${sourceLabel(src)}</p><div class="detail-actions">${external(`${CLAUS}/c/${p.slug}`,'Open on Claus')}${external(`${CLAUS}/read/network/${p.slug}`,'Official profile')}<button class="button" data-action="refresh-profile" ${busy?'disabled':''}>${icon('refresh')}Refresh project</button><button class="button" data-action="export">Export evidence</button></div><p class="feedback" role="status">${esc(detailState)}</p><dl class="project-facts"><div><dt>Stable project ID</dt><dd class="mono">${esc(p.id)}</dd></div><div><dt>Profile revision</dt><dd>${profile?.revision??p.revision??'Not supplied'}</dd></div><div><dt>Profile updated</dt><dd>${displayDate(profile?.updatedAt??p.updatedAt)}</dd></div><div><dt>Created / creator</dt><dd>Not publicly supplied</dd></div></dl>
+ <div class="detail-grid"><section class="panel"><div class="section-heading"><h2>Published releases</h2><span class="muted">${releases.length} returned</span></div><p class="section-note">Publicly returned website releases. Withdrawn or expired releases may be absent; change diffs are not supplied.</p>${releases.map((r,i)=>`<div class="release-row"><span class="release-index">${String(i+1).padStart(2,'0')}</span><div><h3>${external(r.url,'Open website release')}</h3><p>${time(r.createdAt)}</p><details><summary>Release ID &amp; expiry</summary><code>${esc(r.id)}</code><p>${r.expiresAt?`Expiry: ${time(r.expiresAt)}`:'No automatic expiry supplied.'}</p></details></div></div>`).join('')||empty('No website releases returned',profile?'This does not prove that no website ever existed.':'The profile is unavailable. Refresh the project to retry.')}</section>
+ <section class="panel"><div class="section-heading"><h2>Project activity</h2><span class="muted">${events.length} events</span></div><p class="section-note">${sourceLabel(data.sources.activity)}</p>${events.slice(0,8).map(e=>`<div class="timeline-row"><span class="event-dot"></span><div><strong>${esc(eventName(e.kind))}</strong><time>${time(e.at)}</time></div>${external(data.sources.activity.url,'Source')}</div>`).join('')||empty('No events in this feed','Missing activity is not evidence of inactivity.')}${events.length>8?'<a class="panel-foot" href="#activity">View the full activity feed →</a>':''}</section></div>
+ <div class="information-grid"><section><h2>Creator &amp; related projects</h2><p>Creator identity and owner wallet are not provided in the public profile. Other projects by the same owner cannot be established.</p>${profile?.agents?.length?`<p>Published agent names: ${profile.agents.map(a=>esc(a.name)).join(', ')}. These are not creator identities.</p>`:''}<h3>Explicit graph relationships</h3>${relations.length?relations.map(e=>`<p><code>${esc(e.relation)}</code> · ${esc(data.projects.find(x=>x.id===(e.source===p.id?e.target:e.source))?.name)}</p>`).join(''):'<p>No project-to-project edges returned. Shared registration with Claus does not establish common ownership.</p>'}<p>${external(data.sources.graph.url,'Graph source')} · ${sourceLabel(data.sources.graph)}</p></section><section><h2>Verified associated contracts</h2>${deployments.length?deployments.map(d=>`<div class="deployment"><p>${d.chainId===1?'Ethereum':'Ethereum Sepolia'} · verified by the Claus evidence source</p><a class="mono address" href="${d.url}" target="_blank" rel="noopener noreferrer">${esc(d.address)}</a><p>${d.transaction?external(d.transaction,'Recorded transaction'):''} ${external(d.source,'Evidence source')}</p><small>Observed ${time(d.at)}. Not reverified on chain by this crawler.</small></div>`).join(''):'<p>No verified deployment evidence returned. A Claus website is not automatically a token or smart contract.</p>'}<p>Verified owner wallets, separate website metadata and complete transaction histories are unavailable in this integration.</p></section></div>
+ <section class="findings-section"><h2>Evidence &amp; review notes</h2><p class="section-note">Published caveats are quoted from Claus decisions. Confidence describes source attribution, not project safety.</p>${notes.slice(0,6).map(findingHTML).join('')||'<p>No published review caveats returned. This is not a safety rating.</p>'}${notes.length>6?`<p>${notes.length-6} additional caveats are included in the evidence export.</p>`:''}${similarities.map(findingHTML).join('')}</section>`;
 }
-function renderList() {
-  const focusedSlug = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.project : undefined;
-  const projects = currentProjects();
-  el('#featured-count').textContent = String(featuredProjects().length);
-  el('#total-count').textContent = String(data.projects.length);
-  el('#scanned-count').textContent = String(results.size);
-  el('#list-caption').textContent = query.value.trim() ? `${projects.length} search match${projects.length === 1 ? '' : 'es'}` : listMode === 'featured' ? 'From the public Home feed' : listMode === 'scanned' ? 'This session only' : 'Includes technical references';
-  document.querySelectorAll<HTMLButtonElement>('[data-list]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.list === listMode)));
-  if (!projects.length) {
-    el('#project-list').innerHTML = `<div class="list-empty"><p>${query.value.trim() ? `No projects match “${esc(query.value.trim())}”.` : 'Your scanned projects will appear here.'}</p><button type="button" class="outline-button" id="clear-search">${query.value.trim() ? 'Clear search' : 'Explore featured projects'} →</button></div>`;
-    return;
-  }
-  el('#project-list').innerHTML = projects.map((p,i) => `<button type="button" class="project-row" data-project="${esc(p.slug)}" aria-pressed="${p.slug === selectedSlug}"><span class="row-number">${String(i+1).padStart(2,'0')}</span><span><span class="row-name">${esc(p.name)}</span><span class="row-slug">${esc(p.slug)}</span></span><span class="row-state">${results.has(p.slug) ? '✓ scanned' : '↗'}<span class="sr-only">${results.has(p.slug) ? '' : ' Inspect project'}</span></span></button>`).join('');
-  if (focusedSlug) document.querySelector<HTMLButtonElement>(`[data-project="${focusedSlug}"]`)?.focus({ preventScroll: true });
+function routeName() { return location.hash.slice(1)||'overview'; }
+function render(focus=false) {
+ const route=routeName();const project=route.startsWith('project=');
+ const active=project?'directory':(paths[route]?route:'overview');
+ document.querySelectorAll('[data-nav]').forEach(e=>{if((e as HTMLElement).dataset.nav===active)e.setAttribute('aria-current','page');else e.removeAttribute('aria-current');});
+ document.querySelector('#route-label')!.textContent=project?'Project intelligence':paths[active];
+ document.querySelector('#top-source')!.textContent=Object.values(data.sources).some(s=>s.mode==='live')?'Source freshness & coverage':`Recorded snapshot · ${displayDate(SNAPSHOT_AT)}`;
+ document.title=`${project?'Project intelligence':paths[active]} · Claus Crawl`;
+ let slug='';try{slug=decodeURIComponent(route.slice(8));}catch{}
+ main.innerHTML=project?projectPage(slug):({overview,directory,activity,agents,sources,support}[active as keyof typeof paths]||overview)();
+ if(active==='directory'&&!project)directoryResults();
+ if(focus) { main.querySelector<HTMLElement>('h1')?.focus({preventScroll:true});window.scrollTo({top:0}); }
+ bind();
 }
-function renderDetail() {
-  const p = data.projects.find(p => p.slug === selectedSlug) || [...results.values()].find(r => r.project.slug === selectedSlug)?.project;
-  if (!p) { el('#project-detail').innerHTML = '<p class="muted">Choose a project to inspect its public record.</p>'; return; }
-  const result = results.get(p.slug);
-  const profile = result?.profile;
-  const description = profile?.description ?? p.description;
-  const links = `<div class="detail-links"><a href="${CLAUS}/c/${encodeURIComponent(p.slug)}" target="_blank" rel="noopener noreferrer">Open project ↗</a><a href="${CLAUS}/Home#project=${encodeURIComponent(p.slug)}" target="_blank" rel="noopener noreferrer">Find on Claus map ↗</a></div>`;
-  let report = '';
-  if (result) {
-    report = `<div class="signal-box"><div class="signal-heading"><strong>${esc(result.signal)}</strong><span>Public signal</span></div><p>Latest observed update: ${displayDate(result.latestAt)}. Recency is measured against each source’s observation, including cached sources.</p></div>
-      <dl class="evidence-grid"><div><dt>Published interfaces</dt><dd>${profile?.counts.releases ?? result.context?.interfaces?.length ?? 'Unknown'}</dd></div><div><dt>Public services</dt><dd>${profile?.counts.services ?? result.context?.services?.length ?? 'Unknown'}</dd></div><div><dt>Feed events</dt><dd>${result.events.length}</dd></div></dl>
-      <div class="detail-events"><h4>Observed activity</h4>${result.events.length ? `<ul>${result.events.slice(0,4).map(e => `<li><span>${esc(e.kind)}</span><time datetime="${new Date(e.at).toISOString()}">${displayDate(e.at)}</time></li>`).join('')}</ul>${result.events.length > 4 ? `<p class="detail-source">Showing 4 of ${result.events.length} events. Export the report for all returned events.</p>` : ''}` : '<p class="muted">No events for this project in the returned feed. This does not establish inactivity.</p>'}</div>
-      <p class="detail-source">Profile: ${result.profileSource.mode}, ${displayDate(result.profileSource.at)}${result.profileSource.complete ? '' : ' (unavailable)'}. Activity: ${data.sources.activity.mode}, ${displayDate(data.sources.activity.at)}${data.sources.activity.complete ? '' : ' (partial)'}. Graph: ${data.sources.graph.mode}, ${displayDate(data.sources.graph.at)}.</p>
-      <p class="detail-source">${profile ? 'Counts from the project profile.' : result.context ? `Counts from the ${data.sources.context.mode} Home context (${displayDate(data.sources.context.at)}).` : 'Profile counts unavailable.'} ${result.connections} recorded graph connection${result.connections === 1 ? '' : 's'} · ${result.graphResources} graph resource${result.graphResources === 1 ? '' : 's'}. Project-authored descriptions are not endorsements.</p>
-      <div class="detail-links"><a href="${CLAUS}/read/network/${encodeURIComponent(p.slug)}" target="_blank" rel="noopener noreferrer">Read source profile ↗</a><button type="button" class="text-button" data-crawl-project="${esc(p.slug)}" ${busy ? 'disabled' : ''}>Crawl again ↻</button></div>`;
-  } else {
-    report = `<div class="detail-prompt"><p>Ready for a closer look?</p><p class="detail-source">Crawl this project to inspect its public profile, activity, and connections.</p><button type="button" class="outline-button" data-crawl-project="${esc(p.slug)}" ${busy ? 'disabled' : ''}>Crawl this project <span aria-hidden="true">→</span></button></div>`;
-  }
-  el('#project-detail').innerHTML = `<div class="detail-heading"><div><h3 tabindex="-1">${esc(profile?.name || p.name)}</h3><span class="detail-slug">/${esc(p.slug)}</span></div><div class="detail-mark">${octopus()}</div></div><div class="detail-meta"><span>Status <strong>${esc(p.status)}</strong></span><span>Profile <strong>${profile ? profile.published ? 'published' : 'unpublished' : result ? 'unavailable' : 'not yet scanned'}</strong></span><span>Revision <strong>${profile?.revision ?? p.revision ?? 'unknown'}</strong></span></div><p class="detail-description">${esc(description || 'No project description has been published.')}</p>${links}${report}`;
+function bind() {
+ document.querySelector<HTMLInputElement>('#project-query')?.addEventListener('input',e=>{query=(e.target as HTMLInputElement).value;page=1;if(routeName()==='directory')directoryResults();});
+ document.querySelector<HTMLInputElement>('#project-query')?.addEventListener('keydown',e=>{if(e.key==='Enter')search();if(e.key==='Escape'){query='';(e.target as HTMLInputElement).value='';directoryResults();}});
+ document.querySelector('#sort')?.addEventListener('change',e=>{sort=(e.target as HTMLSelectElement).value;page=1;directoryResults();});
+ document.querySelector('#event-kind')?.addEventListener('change',e=>{eventKind=(e.target as HTMLSelectElement).value;render();document.querySelector<HTMLElement>('#event-kind')?.focus();});
 }
-function renderAll() { renderList(); renderDetail(); renderSources(); }
-function selectProject(slug: string, scroll = false) {
-  selectedSlug = slug; renderList(); renderDetail();
-  if (scroll) { el('#project-detail h3').focus({ preventScroll: true }); el('#project-detail').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth', block: 'nearest' }); }
+function search() {scope='all';page=1;if(routeName()==='directory'){render();document.querySelector<HTMLInputElement>('#project-query')?.focus();}else location.hash='directory';}
+async function refresh() {
+ if(busy)return;busy=true;liveAttempted=true;controller=new AbortController();logs=[`${new Date().toISOString()} Reading four public Claus sources.`];lastResult='Reading public sources. Existing records stay visible.';render();
+ try {const next=await refreshDataset(controller.signal,(message)=>logs.push(`${new Date().toISOString()} ${message}`));data=next;const count=Object.values(data.sources).filter(s=>s.mode==='live').length;lastResult=count===4?'Public sources refreshed. Profiles retain their own observation dates.':`${count}/4 sources refreshed. Unavailable sources retain their dated cache; retry with Refresh sources.`;logs.push(lastResult);}
+ catch(e) {lastResult=controller.signal.aborted?'Refresh stopped. Previous observations retained.':'Refresh failed. Previous observations retained; retry with Refresh sources.';logs.push(lastResult);}
+ finally {busy=false;controller=null;render();announce(lastResult);}
 }
-function setBusy(next: boolean) {
-  busy = next;
-  crawlButton.disabled = next;
-  crawlButton.innerHTML = next ? 'crawling<span aria-hidden="true">…</span>' : 'crawl <span aria-hidden="true">→</span>';
-  el<HTMLButtonElement>('#stop').disabled = !next;
-  query.disabled = next;
-  document.querySelectorAll<HTMLButtonElement>('#mode-demo, #mode-live, #demo-tour, [data-trail], [data-crawl-project]').forEach(button => button.disabled = next);
+async function refreshProject() {
+ if(busy)return;let slug='';try{slug=decodeURIComponent(routeName().slice(8));}catch{return;}const p=data.projects.find(p=>p.slug===slug);if(!p||!validSlug(slug))return;
+ busy=true;controller=new AbortController();detailState='Reading the public Claus profile…';render();
+ try {const result=await getProfile(p,true,data,controller.signal);if(result.profile)data.profiles[p.slug]=result.profile;detailSource=result.source;detailState=result.source.mode==='live'?'Public profile refreshed. Activity and graph retain their own timestamps.':'Live profile unavailable. Showing its recorded data where available; try Refresh project again.';}
+ catch {detailState='Profile request stopped. Existing observations retained.';}
+ finally {busy=false;controller=null;if(routeName()===`project=${slug}`)render();announce(detailState);}
 }
-function setProgress(done: number, total: number) {
-  const value = total ? Math.round(done/total*100) : 0;
-  el('#progress-fill').style.width = `${value}%`;
-  el('.scan-progress').setAttribute('aria-valuenow', String(value));
-  el('.scan-progress').setAttribute('aria-valuetext', `${done} of ${total} projects scanned`);
+async function copyAddress() {
+ const input=document.querySelector<HTMLTextAreaElement>('#tip-address')!;const status=document.querySelector('#copy-status')!;
+ try {if(!navigator.clipboard)throw new Error('clipboard unavailable');await navigator.clipboard.writeText(TIP_ADDRESS);status.textContent='Address copied. Confirm the receiving network before sending.';}
+ catch {input.focus();input.select();input.setSelectionRange(0,TIP_ADDRESS.length);let copied=false;try{copied=document.execCommand('copy');}catch{}status.textContent=copied?'Address copied. Confirm the receiving network before sending.':'Address selected. Use your device’s Copy action; clipboard access is unavailable.';}
 }
-function failInput(message: string) {
-  query.disabled = false; el('#input-error').textContent = message; el('#input-error').hidden = false; query.setAttribute('aria-invalid','true'); query.focus();
+function exportData() {
+ let slug='';try{slug=decodeURIComponent(routeName().slice(8));}catch{}
+ const selected=routeName().startsWith('project=')?data.projects.find(p=>p.slug===slug):undefined;
+ const exportObject={schema:'claus-crawl-observations/2',exportedAt:new Date().toISOString(),collection:'on-demand; no connected continuous service',requestedLive:liveAttempted,sources:data.sources,profileSource: selected?detailSource:undefined,projects:selected?[selected]:data.projects,profiles:selected?{[selected.slug]:data.profiles[selected.slug]}:data.profiles,events:uniqueEvents(data).filter(e=>!selected||e.projectId===selected.id),findings:[...similarityFindings(data),...Object.values(data.profiles).flatMap(publishedRiskNotes)].filter(f=>!selected||f.projectIds.includes(selected.id)),log:logs,method:'Source-attributed observations. Similarity is a hypothesis. No security score or ownership inference.'};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(exportObject,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=selected?`claus-crawl-${selected.slug}.json`:'claus-crawl-observations.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);announce('Observations exported.');
 }
-function clearError() { el('#input-error').hidden = true; query.removeAttribute('aria-invalid'); }
-async function move(to: { x: number; y: number }, signal: AbortSignal, duration = 850) {
-  if (signal.aborted) throw new DOMException('Stopped', 'AbortError');
-  if (reducedMotion.matches) { crawler.style.left = `${to.x}%`; crawler.style.top = `${to.y}%`; return; }
-  crawler.classList.add('moving');
-  moveAnimation = crawler.animate([{ left: crawler.style.left || '50%', top: crawler.style.top || '47%' }, { left: `${to.x}%`, top: `${to.y}%` }], { duration, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
-  const cancel = () => moveAnimation?.cancel(); signal.addEventListener('abort', cancel, { once: true });
-  try { await moveAnimation.finished; crawler.style.left = `${to.x}%`; crawler.style.top = `${to.y}%`; }
-  finally { signal.removeEventListener('abort', cancel); moveAnimation?.cancel(); moveAnimation = null; crawler.classList.remove('moving'); }
-}
-reducedMotion.addEventListener('change', () => { if (reducedMotion.matches) moveAnimation?.finish(); });
-async function startCrawl(forceSlug?: string) {
-  if (busy) return;
-  if (forceSlug) query.value = forceSlug;
-  const search = query.value.trim();
-  clearError();
-  if (/^0x/i.test(search) || search.includes('://')) { failInput('Enter a Claus project slug or name, such as agent-blackbox.'); return; }
-  if (mode === 'cached' && search && !filterProjects(data.projects,search).length) { failInput('No cached Claus projects match. Clear the search or choose Live data and try again.'); renderList(); return; }
-  controller = new AbortController(); const signal = controller.signal;
-  setBusy(true); setProgress(0,0); crawlSequence++; lastCrawlMode = mode;
-  el('#scan-status').textContent = mode === 'live' ? 'Reading public sources' : 'Starting crawl';
-  addLog('start', `Crawl ${crawlSequence} · ${mode === 'cached' ? 'cached demo' : 'live reads'}${search ? ` · ${search}` : ' · featured tour'}`);
-  try {
-    results = new Map(); renderList(); renderDetail(); renderMap(featuredProjects());
-    el<HTMLButtonElement>('#export-results').disabled = true;
-    data = mode === 'live' ? await refreshDataset(signal, (message,warn) => addLog('source', message, warn ? 'warn' : '')) : cachedDataset();
-    renderSourceNote(); renderAll();
-    const exact = data.projects.find(p => p.slug === search.toLowerCase() || p.name.toLowerCase() === search.toLowerCase());
-    let queue = search ? exact ? [exact] : filterProjects(data.projects,search) : featuredProjects();
-    if (!queue.length) { addLog('search','No matching project in the available public registry.','warn'); failInput('No Claus project matched. Try a shorter name or run the demo tour.'); el('#scan-status').textContent = 'No matching project'; return; }
-    if (queue.length > 6) addLog('scope', `Scanning the first 6 of ${queue.length} matches. Narrow your search to visit another project.`, 'warn');
-    queue = queue.slice(0,6); renderMap(queue); setProgress(0,queue.length);
-    addLog('read', `${data.projects.length} registry projects; ${data.context.projects.length} in the returned Home feed.`, 'system');
-    // Request profiles together, then inspect each one as Claus visits its node.
-    const profiles = queue.map(p => getProfile(p,mode === 'live',data,signal).then(value => ({ value }), error => ({ error })));
-    addLog('read', `${mode === 'live' ? 'Requesting public' : 'Opening cached'} profiles for ${queue.length} project${queue.length === 1 ? '' : 's'}.`);
-    let done = 0;
-    for (let i = 0; i < queue.length; i++) {
-      if (signal.aborted) throw new DOMException('Stopped','AbortError');
-      const project = queue[i];
-      el('#scan-status').textContent = `Visiting ${i+1} / ${queue.length}`;
-      el('#map-caption').textContent = `Visiting /${project.slug}`;
-      const node = document.querySelector<HTMLElement>(`[data-node="${project.slug}"]`)!;
-      const edge = document.getElementById(`edge-${i}`);
-      node.classList.add('active'); edge?.classList.add('active');
-      if (edgeFor(project)) {
-        addLog('walk', `Follow registered_with → ${project.slug}`);
-        await move({ x: positions[i].x, y: positions[i].y - 5 },signal);
-      } else {
-        addLog('inspect', `${project.slug}: no coordinator edge in this graph; inspecting without a walk.`, 'warn');
-      }
-      const loaded = await profiles[i];
-      if ('error' in loaded) throw loaded.error;
-      if (signal.aborted) throw new DOMException('Stopped','AbortError');
-      const { profile, source } = loaded.value;
-      addLog('profile', `${project.slug} · ${profile ? profile.published ? 'published profile' : 'profile not published' : 'profile unavailable'} · ${source.mode}`, source.note || !profile ? 'warn' : '');
-      const result = assess(project,profile,source,data); results.set(project.slug,result);
-      addLog('activity', `${result.events.length} returned feed event${result.events.length === 1 ? '' : 's'} · ${result.signal.toLowerCase()}`);
-      selectedSlug = project.slug; renderAll();
-      node.classList.remove('active'); node.classList.add('visited'); node.querySelector('.node-core')!.textContent = '✓';
-      done++; setProgress(done,queue.length); el<HTMLButtonElement>('#export-results').disabled = false;
-      if (edgeFor(project)) {
-        addLog('return', `${project.slug} inspected; return along registered_with`);
-        await move(origin,signal,600);
-      }
-      edge?.classList.remove('active'); edge?.classList.add('visited');
-    }
-    el('#scan-status').textContent = `${done} scanned · complete`;
-    el('#map-caption').textContent = 'Trail complete. The signals are below.';
-    addLog('done', `${done} public project${done === 1 ? '' : 's'} inspected. Select a result to explore.`, 'completed');
-    announce(`Crawl complete. ${done} projects inspected. Results are in Read the signals.`);
-    listMode = 'scanned'; renderList();
-  } catch (error) {
-    if (signal.aborted) { addLog('stop', `Crawl stopped. ${results.size} completed results kept.`, 'warn'); el('#scan-status').textContent = 'Stopped · results kept'; el('#map-caption').textContent = 'Claus is resting. Start a new trail.'; announce('Crawl stopped. Completed results were kept.'); }
-    else { addLog('error', 'The crawl could not finish. Try the cached demo or start again.', 'warn'); el('#scan-status').textContent = 'Unable to finish'; announce('Unable to finish. Try the cached demo.'); console.error('Crawl failed:', error instanceof Error ? error.message : 'Unexpected public data'); }
-  } finally {
-    busy = false; controller = null; crawler.classList.remove('moving');
-    document.querySelectorAll('.map-node.active, .graph-edge.active').forEach(node => node.classList.remove('active'));
-    setBusy(false); renderDetail();
-  }
-}
-query.addEventListener('input', () => { clearError(); renderList(); });
-query.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); void startCrawl(); } if (event.key === 'Escape') { query.value = ''; clearError(); renderList(); } });
-crawlButton.addEventListener('click', () => void startCrawl());
-el('#mode-demo').addEventListener('click', () => setMode('cached'));
-el('#mode-live').addEventListener('click', () => setMode('live'));
-el('#demo-tour').addEventListener('click', () => { setMode('cached'); query.value = ''; void startCrawl(); });
-el('#stop').addEventListener('click', () => controller?.abort());
-el('#follow-log').addEventListener('click', () => { following = !following; el('#follow-log').setAttribute('aria-pressed', String(following)); el('#follow-log').textContent = following ? 'Following ↓' : 'Follow log ↓'; if (following) log.scrollTop = log.scrollHeight; });
-el('#copy-log').addEventListener('click', async () => {
-  const text = logEntries.map(e => `${new Date(e.at).toISOString()} [${e.tag}] ${e.message}`).join('\n');
-  try { await navigator.clipboard.writeText(text); announce('Scan log copied.'); el('#copy-log').textContent = 'Copied ✓'; }
-  catch { const selection = window.getSelection(); const range = document.createRange(); range.selectNodeContents(log); selection?.removeAllRanges(); selection?.addRange(range); announce('Clipboard unavailable. Log selected; use your browser’s Copy action.'); el('#copy-log').textContent = 'Log selected'; }
+main.addEventListener('click',e=>{
+ const target=(e.target as Element).closest<HTMLElement>('[data-action],[data-scope]');if(!target)return;
+ if(target.dataset.scope){scope=target.dataset.scope;page=1;render();main.querySelector<HTMLElement>(`[data-scope="${scope}"]`)?.focus();return;}
+ switch(target.dataset.action){case'search':search();break;case'refresh':void refresh();break;case'stop':controller?.abort();break;case'refresh-profile':void refreshProject();break;case'copy-address':void copyAddress();break;case'export':exportData();break;case'clear':query='';scope='all';page=1;render();document.querySelector<HTMLInputElement>('#project-query')?.focus();break;case'next':page++;directoryResults();document.querySelector<HTMLElement>('[data-action="previous"]')?.focus();break;case'previous':page=Math.max(1,page-1);directoryResults();document.querySelector<HTMLElement>('[data-action="next"]')?.focus();break;}
 });
-el('#export-results').addEventListener('click', () => {
-  if (!results.size) return;
-  const report = { schema: 'claus-crawl-report/1', createdAt: new Date().toISOString(), requestedMode: lastCrawlMode, snapshotAt: new Date(SNAPSHOT_AT).toISOString(),
-    method: 'Recent means a public update or event within seven days of its own source observation. This is not a security audit. Missing events do not prove inactivity.',
-    sources: data.sources, results: [...results.values()], log: logEntries };
-  const url = URL.createObjectURL(new Blob([JSON.stringify(report,null,2)], { type: 'application/json' }));
-  const a = document.createElement('a'); a.href = url; a.download = 'claus-crawl-report.json'; a.textContent = 'Download report'; a.hidden = true; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); announce('Report download requested.');
-});
-document.addEventListener('click', event => {
-  const target = (event.target as Element).closest<HTMLButtonElement>('button');
-  if (!target || target.disabled) return;
-  if (target.dataset.trail) void startCrawl(target.dataset.trail);
-  if (target.dataset.crawlProject) { void startCrawl(target.dataset.crawlProject); el('#crawl-title').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth', block: 'start' }); }
-  if (target.dataset.node) selectProject(target.dataset.node,true);
-  if (target.dataset.project) selectProject(target.dataset.project,matchMedia('(max-width: 760px)').matches);
-  if (target.dataset.list) { listMode = target.dataset.list as typeof listMode; query.value = ''; clearError(); renderList(); }
-  if (target.id === 'clear-search') { query.value = ''; listMode = 'featured'; clearError(); renderList(); query.focus(); }
-});
-function readHash() {
-  const params = new URLSearchParams(location.hash.slice(1));
-  const slug = params.get('project');
-  if (slug && validSlug(slug) && data.projects.some(p => p.slug === slug)) { query.value = slug; selectedSlug = slug; renderAll(); }
-}
-window.addEventListener('hashchange',readHash);
-crawler.innerHTML = octopus('', 'Claus, the black ink octopus crawler');
-renderMap(featuredProjects()); renderAll(); renderSourceNote(); readHash();
-addLog('boot', 'Claus Crawl ready.', 'system');
-addLog('cache', `Public snapshot · ${displayDate(SNAPSHOT_AT)}`, 'system');
-addLog('index', `${data.projects.length} registered projects loaded.`);
-addLog('ready', 'Give Claus a project, or run the demo tour.', 'system');
+document.querySelector('.skip-link')!.addEventListener('click',event=>{event.preventDefault();main.focus();main.scrollIntoView({block:'start'});});
+window.addEventListener('hashchange',()=>{detailState='';detailSource=undefined;render(true);});
+render();

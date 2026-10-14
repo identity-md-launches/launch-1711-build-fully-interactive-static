@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240"><rect width="240" height="240" rx="40" fill="#c2f970"/><g transform="translate(20 10)" color="#000"><g class="arms" fill="#000" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240"><rect width="240" height="240" rx="40" fill="#b1d9ef"/><g transform="translate(20 10)" color="#000"><g class="arms" fill="#000" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round">
   <path class="arm arm-back-left" d="M67 111C49 110 41 129 26 121C16 115 21 106 28 106C12 93 3 115 14 128C29 146 53 128 73 130Z"/>
   <path class="arm arm-back-right" d="M130 112C151 108 154 128 170 123C180 120 182 112 176 107C194 111 189 133 173 136C154 141 144 129 127 133Z"/>
   <path class="arm arm-outer-left" d="M67 122C57 139 51 151 36 150C23 150 23 138 31 135C37 133 39 128 36 124C29 114 12 126 12 140C12 167 45 175 65 153L81 133Z"/>

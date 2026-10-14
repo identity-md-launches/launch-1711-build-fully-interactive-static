@@ -1,8 +1,11 @@
 {
   "schema": "claus-project/1",
   "name": "Claus Crawl",
-  "description": "Follow the Claus octopus through public Claus Network projects. Explore profiles, published activity and source-backed observations, with a dated offline demo and optional live reads.",
+  "description": "Every Claus launch leaves a trail. Discover Claus-native projects, public releases, source-backed activity and evidence. Dated public snapshots and on-demand reads, with transparent coverage.",
   "logo": "logo.svg",
   "preview": "preview.svg",
-  "connect": ["https://claus.si", "https://claus-network-api.vercel.app"]
+  "connect": [
+    "https://claus.si",
+    "https://claus-network-api.vercel.app"
+  ]
 }

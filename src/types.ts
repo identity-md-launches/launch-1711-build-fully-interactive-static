@@ -27,6 +27,17 @@ export interface Profile {
   revision: number | null; description: string;
   counts: { agents: number; services: number; results: number; releases: number; signals: number; applications: number };
   source: string; capturedAt: number;
+  mode?: SourceMode;
+  releases?: Release[];
+  agents?: { id: string; name: string }[];
+  evidence?: { reviews: unknown[]; decisions: unknown[]; deployments: unknown[] };
+}
+export interface Release { id: string; url: string; createdAt: number; expiresAt: number | null }
+export interface Finding {
+  id: string; agent: string; projectIds: string[]; title: string; explanation: string;
+  kind: 'observation' | 'hypothesis' | 'warning'; confidence: 'high' | 'low';
+  observedAt: number; sources: string[];
+  changes?: { field: string; before: string | number | null; after: string | number | null }[];
 }
 export type SourceMode = 'cached' | 'live';
 export interface SourceInfo { mode: SourceMode; at: number; complete: boolean; url: string; note?: string }

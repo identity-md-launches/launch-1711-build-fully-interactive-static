@@ -2,91 +2,96 @@
 
 ## Overview
 
-Claus Crawl is a compact public project scanner for people exploring Claus Network. A dark terminal, lime connections, numbered sections, and a black ink octopus carry the interface. The main action comes before the graph; the graph and streaming transcript share one desktop workspace. The octopus is the active crawler, with eight articulated SVG arms, an asymmetric head, and cream eyes. Source: `src/mascot.ts`.
+Claus Crawl is an evidence-led discovery dashboard for the Claus ecosystem. Its visual identity is the black Claus octopus against a restrained ice-blue network diagram, surrounded by a dark, quiet research workspace. The dashboard prioritizes searchable public records, dated coverage and traceable sources. It does not use a market terminal's price, token or trading cues.
 
-This is a single-page tool, not a token scanner or wallet application. Density and monospace data take their cue from CrawlScan; the character comes from Claus. The finished source is `index.html`, `src/main.ts`, `src/style.css`, `src/data.ts`, and `src/types.ts`.
+The source of truth is `src/style.css`, route renderers in `src/main.ts`, `src/mascot.ts`, and the local SVGs in `public/`. The inherited Vite/TypeScript stack, static IIFE export and Claus manifest remain unchanged structurally. There is one intentional dark theme.
 
 ## Colors
 
-Canonical tokens are defined in `src/style.css:1`.
+Canonical semantic tokens are defined in `src/style.css:1`. The source uses hex values consistently.
 
-| Token | Value | Role |
+| Token | Value | Implemented role |
 | --- | --- | --- |
-| `--bg` | `#0b100e` | Page, terminal, and reading background |
-| `--surface` | `#101813` | Input, map, node-label backplates |
-| `--surface-hover` | `#17241b` | Selected mode and selected project row |
-| `--text` | `#ecf1e9` | Main text and headings |
-| `--muted` | `#a2b0a4` | Descriptions, timestamps, source labels |
-| `--faint` | `#859388` | Section numbers, placeholders, row numbers |
-| `--line` | `#2b3a2f` | Structural dividers and grid dots |
-| `--accent` | `#c2f970` | Primary crawl button, visited nodes, current edges |
-| `--ink` | `#000` | Character primitive; SVG paths use the same literal black |
-| `--cream` | `#fff2d8` | Character eye primitive; SVG paths use the same literal cream |
-| `--warning` | `#eec182` | Source fallback and partial-data messages |
-| `--error` | `#ffb4a8` | Inline recoverable input errors |
-| `--focus` | `#dbffa7` | Two-pixel keyboard outline |
+| `--bg` | `#0a1017` | Page background and address field |
+| `--sidebar` | `#0c131b` | Navigation background |
+| `--surface` | `#101923` | Panels and inputs |
+| `--hover` | `#162330` | Hovered rows and secondary surfaces |
+| `--text` | `#e5edf4` | Primary text |
+| `--muted` | `#a0b0bf` | Descriptions, source dates, secondary labels |
+| `--faint` | `#92a5b6` | Slugs, placeholders, small metadata |
+| `--line` | `#253340` | Structural dividers and panel boundaries |
+| `--accent` | `#b1d9ef` | Primary action, links, selected controls, crawler disc |
+| `--accent-ink` | `#10222e` | Text on the ice-blue action |
+| `--accent-soft` | `#1a2c39` | Selected navigation, badges, project initials |
+| `--focus` | `#d2ecff` | Keyboard focus outline |
+| `--warning` | `#e4c18b` | Uncertainty and network confirmation text |
+| `--ink` / `--cream` | `#000` / `#fff2d8` | Values matching the inherited character artwork |
 
-The primary action and visited nodes use dark `#10170d` text. The map's stationary green disc is `#b6eb6b`, surrounded by `#293c1d` and `#3d522b` rings. Waiting connections are `#3b503c`, visited connections `#7aa547`, and recorded service edges `#7b8b77`. Color is accompanied by “visited”/checkmarks, text labels, progress values, and log entries. The coordinator label has a solid surface backplate so its text cannot overlap the bright disc.
+The existing `--error` value is `#ffb9ae`; current recoverable messages use warning text rather than an error surface. The illustration uses `#294253` lines and `#7da6bf` nodes. Chart bars use ice blue for publications and `#526c81` for other events, with text counts and a legend. Input borders use stronger `#415464` / `#425564`; these are structural control boundaries, not text colors.
 
-There is one intentional dark theme. Rendered contrast evidence and limitations belong to `artifacts/validation.md`.
+The artwork's network is explicitly described as an illustration in its accessible name; it is not a fabricated relationship graph. State is always also written in text: Recorded, Live read, Hypothesis, or Published evidence. Contrast measurements and coverage limits belong to the validation report.
 
 ## Typography
 
-Two stacks are used; no remote font is loaded:
+Two local/system font stacks, with no remote font or bundled font dependency:
 
-- Prose/headings: `Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`. Inter is a local-if-present preference; system fallback is expected and no bundled Inter font is claimed.
-- Terminal/data: `ui-monospace, SFMono-Regular, 'Cascadia Code', 'Segoe UI Mono', monospace`.
+- `--sans`: `Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` for prose and controls. Inter is a local-if-present preference, not a claimed loaded asset.
+- `--mono`: `ui-monospace, SFMono-Regular, Consolas, monospace` for IDs, slugs, addresses and short log lines.
 
-The six-size scale is 12, 14, 16, 20, 32, and 48 CSS pixels at the normal 16px root. Tokens are `--text-xs`, `--text-sm`, `--text-base`, `--text-lg`, `--text-xl`, and `--text-display`. Weights are 400 and 600. The title is 48px on desktop and 32px at 760px and below. Body is 14px with 1.5 line-height; descriptions use 1.65. Terminal data is 12px with 1.5–1.65 line-height. Input text becomes 16px at 760px and below to avoid mobile input zoom.
+The six-size scale at the normal 16px root is **12, 14, 16, 20, 28 and 40px** (`--xs`, `--sm`, `--base`, `--lg`, `--xl`, `--display`). Requested weights are 400 and 600. Body/UI text is 14px with unitless 1.5 line height; longer descriptions use 1.7–1.75. Section headings in panels are 16px, page titles 28px, and the overview mission 40px on large screens. At mobile widths the mission becomes 28px. Dense source metadata is 12px. Inputs and the address field are 16px on mobile.
 
-Title tracking is -0.045em at 48px and -0.035em at 32px; other text has natural tracking. Long slugs and descriptions wrap instead of truncating. Detail descriptions have a 68ch maximum; method text has a 46ch measure. Fixed-width monospace digits keep counters stable. Useful text remains selectable.
+Display tracking is -0.045em; page titles -0.03em; 20px section headings -0.02em. Body and data use natural spacing. Prose measures are generally 48–75ch. Complete IDs and the full tip address wrap without ellipsis. Metrics and chart counts use tabular numerals. Critical content remains selectable. Text enlargement is tested separately from native browser zoom.
 
 ## Layout
 
-`main` and the footer have a 1296px maximum outer width and 48px inline padding. The header has a 1440px maximum width. Spacing primarily uses 4, 8, 12, 16, 20, 24, 28, 32, 40, and 48px. Related controls use small gaps; numbered sections use wider vertical separation and thin structural dividers.
+The desktop shell is a 224px navigation column plus a fluid content column; main content has a 1440px maximum width and 40px horizontal padding. The top bar is at least 76px. The main page is padded 36px at the top and 64px below. Spacing uses mostly 4, 8, 12, 16, 20, 24, 28, 32, 36 and 40px.
 
-- Above 1080px: the workspace uses a 1.8:1 map/log grid. Results use a 1:1.1 list/detail grid. The map is 362px high.
-- At 1080px and below: horizontal padding is 32px; workspace ratio becomes 1.5:1; the nonessential introductory note disappears.
-- At 760px and below: padding is 20px; map and log stack, as do list and detail. The map is 340px high and log is 220px high. Method columns become rows. The navigation keeps the Claus Network destination.
-- At 420px and below: padding is 16px; header is 64px; the title breaks onto two lines. The shortcut strip keeps one project shortcut and Run demo, while all projects remain in the directory. Source text is compact. The crawler is 88px rather than 102px.
-- Above 1500px: introductory spacing expands to 60px/48px. This breakpoint was source-reviewed; rendered checks covered up to 1440px.
+The overview has a compact introduction/character grid, a full-width search action, a source strip, four scoped metrics, a two-column launch/update and activity/evidence workspace, then project discovery. The main search action is visible on the first 390px screen. Dedicated project pages share the same shell and use side-by-side release and timeline panels followed by evidence sections.
 
-The graph uses percentage positions with six visible project nodes, a coordinator at 50%/47%, and actual graph edges. Each node is a button with a complete wrapping slug. The log scrolls independently and exposes a Follow toggle. No fixed overlay covers controls. Reflow was measured at 320, 390, 760, and 1440px; native device/zoom limits are in validation.
+Implemented breakpoints:
+
+- **Above 1700px:** sidebar grows to 248px. This breakpoint was source-reviewed, not rendered during the measured viewport suite.
+- **At 1200px and below:** sidebar becomes 200px, outer padding 28px, panels become denser, and secondary row detail is reduced. Full records remain available on project pages.
+- **At 960px and below:** sidebar becomes a top navigation header; its support link moves into the top utility position. Navigation wraps; no sticky overlay covers content.
+- **At 700px and below:** 20px outer padding, stacked search input/action, two-column metrics, one-column content panels and a 28px mission heading. The decorative network illustration is removed; the octopus remains in the brand. Overview, directory and activity stay in the top navigation; agents and source pages remain reachable through the footer and contextual links. The support page stacks its explanation above the wallet panel.
+- **At 360px and below:** outer padding becomes 16px, decorative row initials are omitted where space is tight, and the QR explanation stacks. Names, IDs and the recipient address are not clipped.
+
+Rendered reflow checks cover 320, 390, 760 and 1440 widths on all principal routes. There is no horizontal scrolling. At 760px, 200% root-text enlargement was checked on overview, support and a contract-evidence project. RTL is not a product requirement and was not rendered; most layout spacing uses logical properties.
 
 ## Elevation & depth
 
-The interface is flat. No box shadows or gradients are used for panels or text. Background tones and 1px borders establish hierarchy. The node map uses a radial-dot CSS background. The green disc and dashed circle frame the black character without turning its body green.
+Surfaces are flat: tonal backgrounds and 1px structural borders, with no panel shadows or gradients. Panels use 8px radii; primary/secondary actions use 5px; badges 4px; project initials 9px; circles are reserved for the octopus disc and small status markers. The QR is black on an opaque white background with a four-module quiet zone.
 
-Map layering is local: connection SVG, central disc, node buttons, and the pointer-transparent octopus. The skip link appears above the header only when focused.
-
-## Shapes
-
-Inputs and the primary action use 5px radii; workspace edges use 6px; outlined secondary actions use 4px. Small node cores are 28px squares with 5px radii. The brand tile uses a 7px radius in the header. Circles are reserved for the coordinator and character treatments. Ordinary project results are divided rows, not nested cards.
+The illustration caption has a solid page-colored backplate so its contrast does not depend on the SVG beneath it. Standalone project-back and support-back links are underlined. The only high stacking layer is the keyboard skip link. There are no modals, fixed banners, popovers or nested cards. Source and release details use native `details`/`summary` elements.
 
 ## Components
 
-| Pattern | Source | States and behavior |
+| Pattern | Source / reuse points | States and behavior |
 | --- | --- | --- |
-| Scanner input + crawl | `index.html`, `src/main.ts:startCrawl`, `.search-input`, `.primary` | Visible label, Enter submission without a form, inline error, Escape clears search, disabled while reading, Stop remains available |
-| Source selector | `setMode`, `.mode-controls` | Native toggle buttons with `aria-pressed`; live selection does not silently refresh until a crawl |
-| Octopus + map | `src/mascot.ts`, `renderMap`, `move`, `.crawler`, `.map-node` | Visits only recorded coordinator edges; checkmarked visited nodes; recorded service edges are dashed; missing edges produce an inspection log without an invented walk |
-| Scan transcript | `addLog`, `.log` | Appended real steps, timestamps, warning text, keyboard-scrollable log, Follow control, copy/select fallback |
-| Project directory | `renderList`, `.project-row`, `.result-tabs` | Featured/all/scanned, search filtering, selected row, empty state with recovery, keyboard focus preserved during row updates |
-| Project detail | `renderDetail`, `.signal-box`, `.evidence-grid` | Name, slug, status, public description, canonical links, source-attributed counts, events, recency verdict, unknown fields, repeat crawl |
-| Source disclosure | `renderSources`, `.source-details` | Native details/summary, source table, cached/live dates and completeness, links to public references |
-| JSON report | Export handler in `src/main.ts` | Disabled until a completed result exists; includes source clocks, requested mode, results, events, and transcript |
+| Shell/navigation | `index.html`, `.sidebar`, `.main-nav`, `.topbar` | Native hash links, current-page indication, mobile header, support in navigation/footer |
+| Search | `searchBox`, `search`, `directoryResults`, `.search-box` | Visible contextual help and accessible label; Enter submits, Escape clears; search persists within the session; no form submission dependency |
+| Project rows | `projectRow`, `.project-row`, `.project-label`, `.row-meta` | Whole-row native links, complete wrapping names/slugs, hover/focus, stable IDs on detail pages |
+| Filters/pagination | `directory`, `directoryResults`, `.segmented`, `.pagination` | Native buttons with `aria-pressed`, native select, 12 rows per page, disabled boundary buttons, live result count and clear recovery |
+| Source status | `sourceStrip`, `sources`, `.source-row` | Independent recorded/live timestamps, partial coverage, no simulated status, explicit unavailable-source fallback |
+| Refresh | `refresh`, `refreshProject`, `.button`, `.feedback` | Loading label, disabled repeat activation, cancellation for collection, retry and previous records; no timed browser polling |
+| Activity chart | `activityDays`, `trendChart`, `.chart` | Seven UTC buckets of deduplicated returned events, visible values, a named group and screen-reader counts; no invented history or trend extrapolation |
+| Project intelligence | `projectPage`, `.project-facts`, `.release-row`, `.timeline-row` | Stable ID, profile clock, public releases, sources, unknown creator/creation states and recognized chain evidence only |
+| Findings | `findingHTML`, `.finding`, `.badge` | Hypothesis versus attributed observation, explanation, timestamp, project links and sources; confidence describes attribution or relationship uncertainty |
+| Support | `support`, `copyAddress`, `#tip-address`, `.tip-panel` | Full read-only/selectable address, copy success message, manual selection fallback, local QR and unverified-network explanation; no transaction action |
+| Export | `exportData` | Downloads JSON with source clocks, projects, findings and real log entries; no backend or credentials |
 
-Controls use native buttons and links. Most text actions are 36–44px high; every measured target meets the 24px-or-spacing rule. Keyboard outlines are 2px with 4px offset; the input wrapper has a 2px outline with 2px offset. Mobile project selection moves focus to the detail heading. The completed-scan status announces a concise result; the whole detail pane is not a live region.
+Controls generally target 42px desktop and 44px mobile; text links meet the measured 24px/spacing floor. Native focus uses a 2px `--focus` perimeter with 4px offset; search uses a 2px container outline. Hash navigation moves focus to the new page heading. The skip link focuses main content without changing the current route. Announcements use stable status regions; the focusable crawl transcript has a named log role without automatic live replay. Published author text is escaped before insertion.
 
 ## Motion
 
-Outbound travel takes 850ms; return travel takes 600ms, using `cubic-bezier(.4,0,.2,1)`. Every movement has a corresponding `walk` or `return` log entry. Arms and head move only during those trips, using a 320ms alternating cycle. Idle Claus is still. Stop cancels the animation and fetch controller. Changing to reduced motion finishes the current trip; subsequent visits use instantaneous position changes with the same textual steps. The reduced-motion stylesheet disables transitions and keyframes. Button press scale is 0.96 otherwise.
+There is no autoplay illustration or simulated crawler activity. Buttons have 150ms background/color/transform transitions and a 0.96 press scale. During actual pending requests, the refresh icon rotates with a 1.5s cycle. All motion is inside `prefers-reduced-motion: no-preference`; reduced-motion requests retain the static loading label without spinning. No `transition: all` is used.
 
 ## Do / don't
 
-- Reuse the six-size scale, semantic colors, section-heading alignment, and plain rows.
-- Keep the sole filled action focused on crawling; use text or outlined controls for secondary actions.
-- Keep Claus black with cream eyes and rounded curling arms. Do not substitute a spider or generic network icon.
-- Keep graph movement tied to evidence-bearing scan steps. Never animate invented activity, balances, or network connections.
-- Preserve complete names and slugs, source timestamps, cache labels, and missing-data states.
-- If adding a local page, reuse the header, width/padding rules, and type tokens; keep links relative and export the page explicitly. Recheck the static-host file/origin limits.
+- Reuse the semantic palette, six-size scale, row components and source-strip pattern for new Claus-native pages.
+- Use one filled action for the task at hand; secondary actions remain outlined or textual.
+- Keep the octopus black with cream eyes and curled arms. Do not introduce spiders, token-price graphics or fabricated network links.
+- Name every data scope and observation time. Keep claims, source evidence and hypotheses distinct.
+- Preserve entire addresses, IDs, source links and unknown states. A missing record never proves safety or absence.
+- Keep runtime assets local and URLs relative. Add a hash route through `render`, retain keyboard focus handling, and recheck the static export and mobile reflow.
+- Do not turn on wallet connections, embed credentials, or claim continuous monitoring when adding a page.
